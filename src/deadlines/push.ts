@@ -75,7 +75,13 @@ export async function syncPush(sub?: PushSubscription | null): Promise<boolean> 
   const s = settingsStore.get();
   const today = todayISO();
   const base = new URL(import.meta.env.BASE_URL, location.href).href;
-  const reminders = scheduleReminders(deadlines(await listCards(), today), today, Date.now(), s.currency, (id) => `${base}#/card/${encodeURIComponent(id)}`);
+  const cards = await listCards();
+  const reminders = scheduleReminders(deadlines(cards, today), today, Date.now(), {
+    currency: s.currency,
+    cardUrl: (id) => `${base}#/card/${encodeURIComponent(id)}`,
+    minAmount: s.minReminderAmount,
+    checkin: s.checkin ? { cards, url: `${base}#/checkin` } : undefined,
+  });
   try {
     const res = await fetch(`${SERVER}/sync`, {
       method: 'POST',
@@ -104,6 +110,6 @@ export function startPushSync() {
     }, 1500);
   };
   onDataChange(later);
-  settingsStore.subscribe(later); // currency changes the message text
+  settingsStore.subscribe(later); // currency, cut-off and check-in change what's sent
   later();
 }

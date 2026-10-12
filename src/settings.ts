@@ -13,7 +13,16 @@ export interface Settings {
   autoRead: boolean;
   /** When the last backup file was saved. */
   lastBackupAt: number;
+  /** When the occasional "back up?" popup was last shown. */
   backupReminderDismissedAt: number;
+  /** Weekly Sunday check-in notification. */
+  checkin: boolean;
+  /** When the user last finished the check-in screen. */
+  lastCheckinAt: number;
+  /** No return/warranty reminders for purchases under this many cents (0 = remind for everything). */
+  minReminderAmount: number;
+  /** Return windows the user set for a store, in days (see deadlines/policy.ts storeKey). */
+  storeWindows: Record<string, number>;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -24,6 +33,10 @@ export const DEFAULT_SETTINGS: Settings = {
   autoRead: true,
   lastBackupAt: 0,
   backupReminderDismissedAt: 0,
+  checkin: true,
+  lastCheckinAt: 0,
+  minReminderAmount: 2000,
+  storeWindows: {},
 };
 
 export const settingsStore = createStore<Settings>(load('settings', DEFAULT_SETTINGS), (s) => save('settings', s));

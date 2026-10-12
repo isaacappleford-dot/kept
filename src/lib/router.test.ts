@@ -12,6 +12,7 @@ describe('router', () => {
       { name: 'wallet' },
       { name: 'receipts' },
       { name: 'savings' },
+      { name: 'checkin' },
       { name: 'settings' },
       { name: 'privacy' },
       { name: 'credits' },

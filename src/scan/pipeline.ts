@@ -2,6 +2,7 @@ import { draftStore } from '../data/draft';
 import { emptyDraft, type CardKind } from '../data/types';
 import { drawSampleReceipt } from '../demo/sampleReceipt';
 import { todayISO } from '../lib/dates';
+import { settingsStore } from '../settings';
 import { canvasToBlob, decodeImage, prepareImage, release } from './image';
 import { recognise } from './ocr';
 import { parseReceipt } from './parseReceipt';
@@ -51,7 +52,14 @@ function labelFor(status: string) {
   return 'Reading the receipt';
 }
 
-function finish(text: string, image: { image: Blob; thumb: Blob } | null, source: 'scan' | 'pdf', kindHint?: CardKind) {
+const windows = () => settingsStore.get().storeWindows;
+
+/** Text copied from an order email (or from a receipt photo with Live Text) → a draft. */
+export function processText(text: string) {
+  finish(text, null, 'paste');
+}
+
+function finish(text: string, image: { image: Blob; thumb: Blob } | null, source: 'scan' | 'pdf' | 'paste', kindHint?: CardKind) {
   const today = todayISO();
   const parsed = parseReceipt(text, today);
   // "Scan a coupon" with nothing coupon-like detected: still a wallet item, never a purchase.
@@ -61,20 +69,20 @@ function finish(text: string, image: { image: Blob; thumb: Blob } | null, source
     parsed.value ??= parsed.total;
     parsed.unsure = parsed.unsure.filter((u) => u !== 'items' && u !== 'total');
   }
-  const draft = draftFromReceipt(parsed, text, today);
-  draftStore.set({ draft, image, unsure: text.trim() ? parsed.unsure : ['store', 'date', 'total'], source, fixed: [] });
+  const { draft, fixed, returnNote } = draftFromReceipt(parsed, text, today, windows());
+  draftStore.set({ draft, image, unsure: text.trim() ? parsed.unsure : ['store', 'date', 'total'], source, fixed, returnNote });
 }
 
 export function startQuickAdd(sentence: string) {
   const today = todayISO();
-  const { draft, fixed } = draftFromQuickAdd(parseQuickAdd(sentence, today), sentence, today);
+  const { draft, fixed } = draftFromQuickAdd(parseQuickAdd(sentence, today), sentence, today, windows());
   const unsure: Array<'store' | 'date' | 'total'> = [];
   if (!draft.store) unsure.push('store');
   if (draft.total === null) unsure.push('total');
-  draftStore.set({ draft, image: null, unsure, source: 'quick', fixed });
+  draftStore.set({ draft, image: null, unsure, source: 'quick', fixed, returnNote: null });
 }
 
 export function startManual(kind: CardKind = 'purchase') {
   const d = emptyDraft(todayISO(), kind);
-  draftStore.set({ draft: kind === 'purchase' ? withSuggestions(d) : d, image: null, unsure: [], source: 'manual', fixed: [] });
+  draftStore.set({ draft: kind === 'purchase' ? withSuggestions(d, [], windows()) : d, image: null, unsure: [], source: 'manual', fixed: [], returnNote: null });
 }

@@ -34,6 +34,7 @@ const PATHS = {
   box: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',
   type: 'M4 6V4h16v2M12 4v16M9 20h6',
   card: 'M3 6h18v12H3zM3 10h18M7 15h4',
+  clipboard: 'M9 4h6v3H9zM9 5.5H6v15h12v-15h-3M9 12h6M9 16h4',
   wrench: 'M15 4a5 5 0 0 0-5 6.3L4 16.3 7.7 20l6-6A5 5 0 0 0 20 9l-3 3-3-1-1-3z',
 } as const;
 

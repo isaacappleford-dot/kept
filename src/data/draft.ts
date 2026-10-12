@@ -9,10 +9,12 @@ export interface DraftState {
   /** Fields to double-check (from the parser). */
   unsure: ParsedReceipt['unsure'];
   /** Where it came from, for the review screen's heading. */
-  source: 'scan' | 'pdf' | 'quick' | 'manual' | 'sample';
+  source: 'scan' | 'pdf' | 'paste' | 'quick' | 'manual' | 'sample';
   /** Fields the user (or the quick-add sentence) set explicitly, so suggestions don't overwrite them. */
   fixed: Array<'returnBy' | 'warrantyUntil'>;
+  /** Shown under "Return by" when the date came from the receipt ("From your receipt."). */
+  returnNote: string | null;
 }
 
-export const draftStore = createStore<DraftState>({ draft: null, image: null, unsure: [], source: 'manual', fixed: [] });
+export const draftStore = createStore<DraftState>({ draft: null, image: null, unsure: [], source: 'manual', fixed: [], returnNote: null });
 export const useDraft = () => useStore(draftStore);

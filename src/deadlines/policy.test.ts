@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findStore, guessCategory, suggestReturnBy, suggestWarranty } from './policy';
+import { findStore, guessCategory, storeKey, suggestReturnBy, suggestWarranty } from './policy';
 
 describe('store matching', () => {
   it('finds known stores in typed names and receipt text', () => {
@@ -69,5 +69,29 @@ describe('warranty suggestions', () => {
   it('suggests a year for electronics and nothing for clothing', () => {
     expect(suggestWarranty('computer', '2026-10-11').date).toBe('2027-10-11');
     expect(suggestWarranty('clothing', '2026-10-11').date).toBeNull();
+  });
+});
+
+describe('remembered store windows', () => {
+  const base = { online: false, deliveryDate: null, category: 'other' as const };
+
+  it('keys by store, with electronics apart where the store treats them differently', () => {
+    expect(storeKey('TARGET T-1234', 'other')).toBe('target');
+    expect(storeKey('Target', 'tv')).toBe('target|electronics');
+    expect(storeKey('IKEA', 'tv')).toBe('ikea');
+    expect(storeKey("  Rosie's   Boutique ", 'clothing')).toBe("rosie's boutique");
+    expect(storeKey('', 'other')).toBeNull();
+  });
+
+  it('uses the window the user set', () => {
+    const s = suggestReturnBy({ ...base, store: 'Target', date: '2026-06-01' }, { target: 60 });
+    expect(s.date).toBe('2026-07-31');
+    expect(s.reason).toBe('You set Target to 60 days.');
+    const local = suggestReturnBy({ ...base, store: "Rosie's Boutique", date: '2026-06-01' }, { "rosie's boutique": 14 });
+    expect(local.date).toBe('2026-06-15');
+  });
+
+  it('does not apply a normal window to electronics', () => {
+    expect(suggestReturnBy({ ...base, store: 'Target', date: '2026-06-01', category: 'tv' }, { target: 60 }).days).toBe(30);
   });
 });

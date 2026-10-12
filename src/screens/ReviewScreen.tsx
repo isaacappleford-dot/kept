@@ -10,6 +10,7 @@ import { toast } from '../lib/toast';
 const HEADINGS = {
   scan: 'Check these details',
   pdf: 'Check these details',
+  paste: 'Check these details',
   sample: 'Check these details',
   quick: 'Check these details',
   manual: 'New card',
@@ -17,7 +18,7 @@ const HEADINGS = {
 
 /** "Check these details" after a scan, PDF, quick add or manual entry. */
 export default function ReviewScreen() {
-  const { draft, image, unsure, source, fixed } = useDraft();
+  const { draft, image, unsure, source, fixed, returnNote } = useDraft();
   const imageUrl = useMemo(() => (image ? URL.createObjectURL(image.image) : null), [image]);
   useEffect(() => () => void (imageUrl && URL.revokeObjectURL(imageUrl)), [imageUrl]);
 
@@ -36,6 +37,7 @@ export default function ReviewScreen() {
         unsure={unsure}
         fixed={fixed}
         imageUrl={imageUrl}
+        returnNote={returnNote}
         heading={
           read || source === 'quick' ? (
             <p className="mb-4 px-1 text-[14px] text-white/60">

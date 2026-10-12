@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { InstallBanner } from '../components/InstallBanner';
 import { DeadlineRow } from '../components/Rows';
 import { TabBar } from '../components/TabBar';
-import { Button, Header, IconButton, Spinner } from '../components/ui';
+import { Button, Header, IconButton, Sheet, Spinner } from '../components/ui';
+import { exportBackup } from '../data/backup';
+import { saveBackupFile } from '../data/backupActions';
+import { checkinItems } from '../deadlines/digest';
 import { useCards } from '../data/hooks';
 import { deadlines, groupDeadlines } from '../deadlines/deadlines';
 import { checkReminders, notificationPermission, requestNotifications } from '../deadlines/notify';
@@ -17,6 +20,37 @@ import { setSettings, useSettings } from '../settings';
 
 const DAY = 86_400_000;
 
+/** The "back up?" popup shows at most once per app launch, and once a month. */
+let backupAskedThisLaunch = false;
+
+function BackupPopup({ open, onClose }: { open: boolean; onClose: () => void }) {
+  // Build the file as soon as the popup opens, so tapping Save opens the share sheet immediately.
+  const [blob, setBlob] = useState<Blob | null>(null);
+  useEffect(() => {
+    if (open) void exportBackup().then(setBlob, () => setBlob(null));
+  }, [open]);
+  return (
+    <Sheet open={open} onClose={onClose} title="Back up your receipts?">
+      <p className="mb-4 px-2 text-center text-[15px] text-white/70">
+        They’re only on this phone. Save a copy to iCloud Drive or Files so a new phone, or deleting the app, doesn’t lose them.
+      </p>
+      <div className="flex flex-col gap-2">
+        <Button
+          disabled={!blob}
+          onClick={async () => {
+            if (await saveBackupFile(blob)) onClose();
+          }}
+        >
+          {blob ? 'Save a backup' : 'Getting it ready…'}
+        </Button>
+        <Button variant="ghost" onClick={onClose}>
+          Not now
+        </Button>
+      </div>
+    </Sheet>
+  );
+}
+
 export default function HomeScreen() {
   const cards = useCards();
   const s = useSettings();
@@ -26,9 +60,32 @@ export default function HomeScreen() {
   const week = list.filter((d) => d.urgency === 'week');
   const atStake = week.filter((d) => d.kind !== 'warranty').reduce((sum, d) => sum + (d.amount ?? 0), 0);
   const [perm, setPerm] = useState(notificationPermission());
+  const [backupOpen, setBackupOpen] = useState(false);
+
+  const toDecide = useMemo(() => {
+    if (!cards) return 0;
+    const it = checkinItems(cards, today, s.minReminderAmount);
+    return it.returns.length + it.expiring.length;
+  }, [cards, today, s.minReminderAmount]);
+  const showCheckin = s.checkin && toDecide > 0 && Date.now() - s.lastCheckinAt > 6 * DAY;
+
+  // Every now and then (a month after the last backup or "Not now"), once people have
+  // used Kept for a week and saved a few receipts, ask if they'd like a backup.
+  useEffect(() => {
+    if (!cards || backupAskedThisLaunch || cards.length < 5) return;
+    const oldest = Math.min(...cards.map((c) => c.createdAt));
+    if (Date.now() - oldest < 7 * DAY) return;
+    if (Date.now() - Math.max(s.lastBackupAt, s.backupReminderDismissedAt) < 30 * DAY) return;
+    const t = window.setTimeout(() => {
+      // Counts as asked once it's actually on screen; then not again for a month.
+      backupAskedThisLaunch = true;
+      setSettings({ backupReminderDismissedAt: Date.now() });
+      setBackupOpen(true);
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [cards, s.lastBackupAt, s.backupReminderDismissedAt]);
 
   const showNotifyCard = cards && cards.length > 0 && !s.notifications && perm !== 'unsupported' && perm !== 'denied';
-  const showBackup = cards && cards.length >= 5 && Date.now() - Math.max(s.lastBackupAt, s.backupReminderDismissedAt) > 30 * DAY;
 
   return (
     <div className="min-h-screen-safe bg-ink pb-tabs">
@@ -57,6 +114,23 @@ export default function HomeScreen() {
               ? 'Nothing due this week.'
               : `${week.length} deadline${week.length === 1 ? '' : 's'} this week${atStake ? ` · ${formatMoney(atStake, s.currency, { whole: true })} at stake` : ''}.`}
           </p>
+        )}
+
+        {showCheckin && (
+          <button
+            type="button"
+            onClick={() => navigate({ name: 'checkin' })}
+            className="mx-3 mb-4 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-2xl bg-accent/15 p-4 text-left active:bg-accent/25"
+          >
+            <Icon name="check" size={22} className="shrink-0 text-accent" />
+            <span className="flex-1">
+              <span className="block text-[16px] font-semibold">Weekly check-in</span>
+              <span className="block text-[13px] text-white/65">
+                {toDecide} thing{toDecide === 1 ? '' : 's'} to decide · about a minute
+              </span>
+            </span>
+            <Icon name="arrow" size={18} className="text-white/50" />
+          </button>
         )}
 
         {showNotifyCard && (
@@ -122,22 +196,9 @@ export default function HomeScreen() {
           </div>
         )}
 
-        {showBackup && (
-          <div className="mx-3 mb-4 rounded-2xl bg-white/5 p-3 text-[13px] text-white/75" role="note">
-            <p className="font-semibold text-white">Back up your receipts</p>
-            <p className="mt-0.5">They live only on this phone. Save a backup file to iCloud Drive or Files now and then.</p>
-            <div className="mt-2 flex gap-2">
-              <Button className="min-h-[36px] px-3 text-[13px]" onClick={() => navigate({ name: 'settings' })}>
-                Back up
-              </Button>
-              <Button variant="ghost" className="min-h-[36px] px-3 text-[13px]" onClick={() => setSettings({ backupReminderDismissedAt: Date.now() })}>
-                Later
-              </Button>
-            </div>
-          </div>
-        )}
         <InstallBanner />
       </div>
+      <BackupPopup open={backupOpen} onClose={() => setBackupOpen(false)} />
       <TabBar current="home" />
     </div>
   );
