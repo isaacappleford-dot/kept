@@ -17,6 +17,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Optional: with these two repo secrets, the free reminders server is
+      # deployed too and reminders arrive even when the app is closed.
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -32,7 +37,16 @@ jobs:
         run: |
           REPO="${{ github.event.repository.name }}"
           if [[ "$REPO" == *.github.io ]]; then echo "BASE_PATH=/" >> "$GITHUB_ENV"; else echo "BASE_PATH=/$REPO/" >> "$GITHUB_ENV"; fi
-      - name: Build (also fetches the detection models if they are missing)
+      - name: Deploy the reminders server (Cloudflare Workers, free plan)
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        working-directory: server
+        run: |
+          npx wrangler deploy 2>&1 | tee deploy.log
+          URL=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          if [ -z "$URL" ]; then echo "::error::Couldn't find the reminders server URL in the wrangler output"; exit 1; fi
+          echo "VITE_PUSH_URL=$URL" >> "$GITHUB_ENV"
+          echo "Reminders server: $URL"
+      - name: Build (copies the text-recognition engine into public/ocr)
         run: npm run build
       - uses: actions/upload-pages-artifact@v5
         with:

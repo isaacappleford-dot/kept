@@ -62,7 +62,7 @@ export default function HomeScreen() {
         {showNotifyCard && (
           <div className="mx-3 mb-4 flex items-center gap-3 rounded-2xl bg-white/5 p-3 text-[13px] text-white/80">
             <Icon name="bell" size={22} className="shrink-0 text-accent" />
-            <p className="flex-1">Get a heads-up when a deadline is close. Add them to Calendar too, for alerts even when the app is closed.</p>
+            <p className="flex-1">Get a heads-up at 9 am when a deadline is close, even when the app is closed.</p>
             <Button
               className="min-h-[36px] px-3 text-[13px]"
               onClick={async () => {

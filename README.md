@@ -19,7 +19,7 @@ Architecture and how the concept maps to a web app are in [PLAN.md](PLAN.md). Th
 - **Every purchase becomes a card:** store, date, items, price, the receipt photo, a **Return by** date suggested from the store’s usual policy (electronics windows and holiday extensions included), a **Warranty until** date suggested by category, an optional extended warranty, and notes (serial number, gift recipient, where the box is).
 - **Online orders:** the return clock starts at delivery, and the app asks for the delivery date.
 - **Coming Up (home):** every deadline sorted by urgency: This week (red), This month, Later, and Just missed.
-- **Reminders:** “3 days left to return the boots ($120)”, “Your laptop warranty ends in 30 days. Anything acting up?”, “Your $10 coupon at Kohl’s expires Friday”. See [Reminders on the web](#reminders-on-the-web).
+- **Reminders:** “3 days left to return the boots ($120)”, “Your laptop warranty ends in 30 days. Anything acting up?”, “Your $10 coupon at Kohl’s expires Friday”. See [Reminders](#reminders).
 - **Wallet:** coupons, gift cards and store credit grouped by store with balances; “Spent some”, “Used it all”, “I used it”.
 - **Receipts:** a searchable archive (“TV”, “Best Buy”, part of a serial number, anything on the receipt) with filters.
 - **Savings:** a running total of money kept through returns, warranty claims and coupons used.
@@ -28,13 +28,17 @@ Architecture and how the concept maps to a web app are in [PLAN.md](PLAN.md). Th
 - **PWA:** offline after the first load (scanning included), installable (Android prompt, iPhone how‑to), safe‑area aware, Reduce Motion and screen‑reader friendly.
 - **Try it without receipts:** a generated **Sample receipt** goes through the real camera → OCR → review path, and **Add sample cards** fills every screen.
 
-## Reminders on the web
+## Reminders
 
-A web app can’t wake itself up while closed (that needs a push server, which would mean sending your deadlines to one). Kept uses three layers instead, all on‑device:
+With the free reminders server (`server/`, a Cloudflare Worker) set up, reminders arrive at **9 am on the day, even when Kept is closed**. Each phone subscribes with its own private push address and sends only its own upcoming reminders, so everyone gets their own. Without it, reminders show when the app is opened. **Add to Calendar** works either way. iPhone needs Kept on the Home Screen (iOS 16.4+) for any notifications.
 
-1. **Coming Up** is always correct the moment you open the app.
-2. **Notifications** fire for anything due when the app is opened or brought back, plus an **app‑icon badge** with this week’s count. On iPhone this needs the app on the Home Screen (iOS 16.4+).
-3. **Add to Calendar** (per card, or all at once from Coming Up) exports `.ics` events with alarms at 9 am, three days before, the day before and on the day. Your calendar then alerts you even when Kept is closed. This is the reliable path, and the onboarding says so.
+**One-time setup (free):**
+1. Make a free account at [dash.cloudflare.com](https://dash.cloudflare.com), open **Workers & Pages** once, and pick a `workers.dev` name when asked.
+2. Go to **My Profile → API Tokens → Create Token**, use the **Edit Cloudflare Workers** template, and copy the token.
+3. In this GitHub repo: **Settings → Secrets and variables → Actions → New repository secret**. Add `CLOUDFLARE_API_TOKEN` (the token) and `CLOUDFLARE_ACCOUNT_ID` (shown on the Cloudflare dashboard's right side).
+4. Run the **Deploy to GitHub Pages** workflow. It deploys the server and builds the app pointed at it.
+
+The server stores each phone's push address and its upcoming reminder text and times, nothing else. The free plan easily covers thousands of people.
 
 ## Run locally
 
@@ -87,7 +91,7 @@ There’s no server. Reading, parsing, reminders and exports all run in the brow
 | Apple document scanner | The phone’s own camera via the file picker, then contrast clean‑up |
 | On‑device text recognition (Vision) | Tesseract WASM, self‑hosted, on‑device |
 | iCloud storage & sync | IndexedDB on the device + backup/restore files |
-| Local notifications | Notifications on open, app badge, and calendar alarms |
+| Local notifications | Push reminders from a free server, app badge, calendar alarms |
 | Share an online order to the app | Pick a screenshot or PDF (Android’s share target needs extra work; see PLAN.md) |
 | Voice quick‑add | Quick add sentence parser; dictate with the keyboard mic |
 | Home screen widget | App icon badge (widgets aren’t available to web apps) |
@@ -97,6 +101,5 @@ There’s no server. Reading, parsing, reminders and exports all run in the brow
 ## Known web limitations
 
 - No automatic edge detection/perspective correction; shoot the receipt flat and fill the frame.
-- Reminders can’t fire while the app is closed except through the calendar (see above).
 - No background location, so no “you’re near Target” alerts.
 - No cross‑device sync; use backup files.

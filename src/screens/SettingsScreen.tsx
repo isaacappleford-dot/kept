@@ -6,6 +6,7 @@ import { clearAll, listCards } from '../data/db';
 import { formatBytes, isPersisted, requestPersistence, storageUsage, type Usage } from '../data/storage';
 import { deadlines } from '../deadlines/deadlines';
 import { checkReminders, notificationPermission, requestNotifications } from '../deadlines/notify';
+import { disablePush, pushSupported } from '../deadlines/push';
 import { loadSampleData } from '../demo/sampleData';
 import { addToCalendar, shareInventory } from '../export/actions';
 import { shareOrDownload } from '../export/share';
@@ -32,7 +33,11 @@ export default function SettingsScreen() {
   }, []);
 
   const setNotifications = async (on: boolean) => {
-    if (!on) return setSettings({ notifications: false });
+    if (!on) {
+      setSettings({ notifications: false });
+      if (pushSupported()) await disablePush();
+      return;
+    }
     const ok = await requestNotifications();
     setPerm(notificationPermission());
     setSettings({ notifications: ok });
@@ -49,7 +54,9 @@ export default function SettingsScreen() {
         : 'Not available in this browser. Use Calendar instead.'
       : perm === 'denied'
         ? 'Blocked. Allow notifications for this site in your phone’s settings.'
-        : 'Shown when you open the app and something is due.';
+        : pushSupported()
+          ? 'At 9 am on the day, even when Kept is closed.'
+          : 'Shown when you open the app and something is due.';
 
   return (
     <div className="min-h-screen-safe bg-ink pb-[calc(env(safe-area-inset-bottom)+24px)]">
@@ -63,7 +70,7 @@ export default function SettingsScreen() {
           }} />
           <Row
             label="Add all deadlines to Calendar"
-            hint="The most reliable reminders: your calendar alerts you even when Kept is closed"
+            hint="A backup: your calendar alerts you too"
             icon="calendar"
             onClick={async () => void addToCalendar(deadlines(await listCards(), todayISO()), s.currency)}
           />

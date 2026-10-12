@@ -8,3 +8,7 @@ playwright-report
 .DS_Store
 # copied from node_modules by scripts/copy-assets.mjs
 public/ocr/
+# wrangler
+.wrangler/
+server/deploy.log
+server/.dev.vars
