@@ -1,0 +1,17 @@
+# Kept reminders server. Deployed by .github/workflows/deploy.yml when the
+# CLOUDFLARE_API_TOKEN secret is set (free Workers plan is enough).
+name = "kept-reminders"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+[vars]
+# Push services want a contact for the sender: a mailto: or https: URL.
+VAPID_SUBJECT = "https://github.com/isaacappleford-dot/kept"
+
+[[durable_objects.bindings]]
+name = "STORE"
+class_name = "PushStore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PushStore"]

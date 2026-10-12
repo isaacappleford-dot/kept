@@ -1,4 +1,23 @@
-/* Loaded into the generated service worker: tapping a reminder opens its card. */
+/* Loaded into the generated service worker: shows pushed reminders and opens their card when tapped. */
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: event.data ? event.data.text() : 'Kept' };
+  }
+  const scope = self.registration.scope;
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Kept', {
+      body: data.body || '',
+      tag: data.tag,
+      icon: `${scope}icons/icon-192.png`,
+      badge: `${scope}icons/favicon-32.png`,
+      data: { url: data.url || scope },
+    }),
+  );
+});
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = new URL((event.notification.data && event.notification.data.url) || self.registration.scope, self.registration.scope).href;

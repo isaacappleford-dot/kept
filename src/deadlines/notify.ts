@@ -3,16 +3,16 @@ import { loadValue, save } from '../lib/storage';
 import { todayISO } from '../lib/dates';
 import { settingsStore } from '../settings';
 import { deadlines } from './deadlines';
+import { pushActive, pushSupported, enablePush, startPushSync } from './push';
 import { dueReminders } from './reminders';
 
 /**
- * Reminders on the web. A web app can't wake itself up while closed, so:
- *  - Coming Up is the source of truth whenever the app is opened;
- *  - due reminders are shown as notifications when the app opens or comes back
- *    to the foreground (iPhone: only when installed to the Home Screen, iOS 16.4+);
+ * Reminders:
+ *  - with the reminders server (push.ts), they arrive at 9 am even when the app
+ *    is closed (iPhone: Home Screen app, iOS 16.4+);
+ *  - without it, due reminders are shown when the app is opened;
  *  - the app icon shows a badge with this week's count (where supported);
- *  - "Add to Calendar" hands deadlines to the phone's calendar, which alerts
- *    even when the app is closed.
+ *  - "Add to Calendar" hands deadlines to the phone's calendar as a backup.
  */
 
 const FIRED_KEY = 'fired-reminders';
@@ -25,7 +25,9 @@ export function notificationPermission(): NotificationPermission | 'unsupported'
   return notificationsSupported() ? Notification.permission : 'unsupported';
 }
 
+/** Turns reminders on (from a tap): push from the server when available, else on-open notifications. */
 export async function requestNotifications(): Promise<boolean> {
+  if (pushSupported()) return enablePush();
   if (!notificationsSupported()) return false;
   try {
     return (await Notification.requestPermission()) === 'granted';
@@ -64,6 +66,8 @@ export async function checkReminders() {
     else if (!s.badge) await nav.clearAppBadge?.().catch(() => {});
 
     if (!s.notifications || notificationPermission() !== 'granted') return;
+    // The server already delivers these while the app is closed.
+    if (await pushActive()) return;
     const fired = new Set(loadValue<string[]>(FIRED_KEY, []));
     const due = dueReminders(list, fired, today, s.currency);
     for (const r of due.slice(0, 5)) {
@@ -79,6 +83,7 @@ export async function checkReminders() {
 
 export function startReminderChecks() {
   void checkReminders();
+  startPushSync();
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') void checkReminders();
   });

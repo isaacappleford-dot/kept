@@ -72,7 +72,7 @@ export default function Onboarding() {
             </span>
             <h1 className="text-[28px] font-bold leading-tight">Reminders at the right moment</h1>
             <p className="max-w-sm text-[16px] text-white/70">
-              “3 days left to return the boots ($120).” Turn on notifications, and add deadlines to your Calendar for alerts even when the app is closed.
+              “3 days left to return the boots ($120).” Turn on reminders and they arrive at 9 am on the day, even when the app is closed.
             </p>
             {!canNotify && isIOS && !isStandalone() && (
               <p className="max-w-sm rounded-2xl bg-white/5 p-3 text-[14px] text-white/70">
