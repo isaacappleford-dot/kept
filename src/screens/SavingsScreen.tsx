@@ -13,8 +13,10 @@ import { useSettings } from '../settings';
 
 const KINDS: Array<{ id: SavingKind; label: string; icon: IconName }> = [
   { id: 'return', label: 'Returns', icon: 'undo' },
+  { id: 'price', label: 'Price drops', icon: 'trend' },
   { id: 'warranty', label: 'Warranty claims', icon: 'shield' },
   { id: 'coupon', label: 'Coupons used', icon: 'tag' },
+  { id: 'cancel', label: 'Cancelled trials', icon: 'repeat' },
 ];
 
 export default function SavingsScreen() {
@@ -94,6 +96,12 @@ export default function SavingsScreen() {
               </li>
               <li>
                 <strong className="text-white">Coupons:</strong> tap “I used it” in your Wallet.
+              </li>
+              <li>
+                <strong className="text-white">Price drops:</strong> tap “Got money back” on a card.
+              </li>
+              <li>
+                <strong className="text-white">Trials:</strong> tap “I cancelled it” before it charges.
               </li>
             </ul>
           </EmptyState>

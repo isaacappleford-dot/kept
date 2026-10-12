@@ -14,6 +14,7 @@ export type Route =
   | { name: 'receipts' }
   | { name: 'savings' }
   | { name: 'checkin' }
+  | { name: 'store'; store: string }
   | { name: 'settings' }
   | { name: 'privacy' }
   | { name: 'credits' };
@@ -24,6 +25,7 @@ export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   const name = parts[0];
   if (name === 'card' || name === 'edit') return parts[1] ? { name, id: decodeURIComponent(parts[1]) } : { name: 'home' };
+  if (name === 'store') return parts[1] ? { name, store: decodeURIComponent(parts[1]) } : { name: 'wallet' };
   if ((SIMPLE as readonly string[]).includes(name)) return { name: name as (typeof SIMPLE)[number] };
   return { name: 'home' };
 }
@@ -33,6 +35,8 @@ export function routeToHash(r: Route): string {
     case 'card':
     case 'edit':
       return `#/${r.name}/${encodeURIComponent(r.id)}`;
+    case 'store':
+      return `#/store/${encodeURIComponent(r.store)}`;
     case 'home':
       return '#/';
     default:

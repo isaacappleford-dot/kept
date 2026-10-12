@@ -145,6 +145,16 @@ export default function ScanScreen() {
           <Button variant="secondary" onClick={() => void run(() => processSample((p, label) => setBusy({ p, label })))}>
             <Icon name="sparkle" size={18} /> Sample receipt
           </Button>
+          <Button
+            variant="secondary"
+            className="col-span-2"
+            onClick={() => {
+              startManual('renewal');
+              navigate({ name: 'review' }, { replace: true });
+            }}
+          >
+            <Icon name="repeat" size={18} /> Trial or subscription
+          </Button>
         </div>
         <p className="px-2 pt-2 text-center text-[12px] text-white/40">
           <Icon name="lock" size={12} className="inline align-[-1px]" /> Receipts are read on this phone. Nothing is uploaded.

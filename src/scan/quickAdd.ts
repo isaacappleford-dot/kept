@@ -57,14 +57,15 @@ const RENEWAL = /\b(?:free\s+)?trial\b|\bsubscription\b|\bauto[- ]?renew|\brenew
 /** "Netflix trial ends Friday $15.49", "Costco membership renews in March, $65", "Spotify $11.99 monthly, renews the 3rd". */
 function parseRenewal(input: string, today: ISODate): QuickAdd {
   let text = ` ${input.trim().replace(/\s+/g, ' ')} `;
-  const when = dateAfter(text, /\b(?:ends?|ending|renews?|renewal|renewing|charges?|charged|bills?|billed|due|expires?|until)\b(?:\s+(?:on|in|by))?/i, today, 'future');
-  if (when) text = text.slice(0, when.span[0]) + ' ' + text.slice(when.span[1]);
+  // Price first: "$15.49" must not be split at its dot by the date clause.
   let total: number | null = null;
   const money = /\$\s?(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{1,2})?)\s?(?:dollars|bucks|usd)\b/i.exec(text);
   if (money) {
     total = parseAmount(money[1] ?? money[2]);
     text = text.replace(money[0], ' ');
   }
+  const when = dateAfter(text, /\b(?:ends?|ending|renews?|renewal|renewing|charges?|charged|bills?|billed|due|expires?|until)\b(?:\s+(?:on|in|by))?/i, today, 'future');
+  if (when) text = text.slice(0, when.span[0]) + ' ' + text.slice(when.span[1]);
   const trial = /\btrial\b/i.test(text);
   const repeat: Repeat = /\b(monthly|a month|per month|every month|\/\s?mo)\b/i.test(text)
     ? 'monthly'

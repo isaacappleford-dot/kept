@@ -13,6 +13,7 @@ describe('router', () => {
       { name: 'receipts' },
       { name: 'savings' },
       { name: 'checkin' },
+      { name: 'store', store: "Kohl's / Main St" },
       { name: 'settings' },
       { name: 'privacy' },
       { name: 'credits' },

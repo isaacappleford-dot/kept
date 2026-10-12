@@ -65,3 +65,37 @@ describe('parseQuickAdd', () => {
     expect(q.returnBy).toBe('2026-10-23');
   });
 });
+
+describe('trials and subscriptions', () => {
+  it('reads a trial that ends on a weekday', () => {
+    const q = parseQuickAdd('Netflix trial ends Friday $15.49', today);
+    expect(q.kind).toBe('renewal');
+    expect(q.store).toBe('Netflix');
+    expect(q.title).toBe('Netflix trial');
+    expect(q.expires).toBe('2026-10-16');
+    expect(q.total).toBe(1549);
+    expect(q.repeat).toBe('none');
+  });
+
+  it('reads a membership that renews in a month', () => {
+    const q = parseQuickAdd('Costco membership renews in March, $65', today);
+    expect(q.kind).toBe('renewal');
+    expect(q.store).toBe('Costco');
+    expect(q.expires).toBe('2027-03-01');
+    expect(q.total).toBe(6500);
+    expect(q.repeat).toBe('yearly');
+  });
+
+  it('reads a monthly subscription with a date', () => {
+    const q = parseQuickAdd('Spotify $11.99 monthly renews Nov 3', today);
+    expect(q.kind).toBe('renewal');
+    expect(q.store).toBe('Spotify');
+    expect(q.expires).toBe('2026-11-03');
+    expect(q.repeat).toBe('monthly');
+  });
+
+  it('still reads store credit and returns as before', () => {
+    expect(parseQuickAdd('$25 store credit at Target, expires Dec 31', today).kind).toBe('credit');
+    expect(parseQuickAdd('Got a vacuum at Target, 90-day return', today).kind).toBe('purchase');
+  });
+});

@@ -144,3 +144,58 @@ test('weekly check-in: decide on returns from Coming Up', async ({ page }) => {
   expect(w.errors).toEqual([]);
   expect(w.foreign).toEqual([]);
 });
+
+test('returns start to finish, price check, trial, store page', async ({ page }) => {
+  const w = watch(page);
+  await page.addInitScript(() => localStorage.setItem('kept:settings', JSON.stringify({ onboarded: true })));
+  await page.goto('/#/settings');
+  await page.getByRole('button', { name: /Add sample cards/ }).click();
+
+  // A mailed return: drop it off → refund check.
+  await page.goto('/#/receipts');
+  await page.getByLabel('Search receipts').fill('running shoes');
+  await page.getByRole('button', { name: /Running shoes/ }).click();
+  await expect(page.getByText('Drop it off by')).toBeVisible();
+  await page.getByRole('button', { name: 'Dropped it off' }).click();
+  await expect(page.getByText('Refund on its way')).toBeVisible();
+
+  // Start a return from an open purchase.
+  await page.goto('/#/receipts');
+  await page.getByLabel('Search receipts').fill('boots');
+  await page.getByRole('button', { name: /Boots/ }).click();
+  await page.getByRole('button', { name: 'Return it', exact: true }).click();
+  await page.getByRole('button', { name: /Taking it back to the store/ }).click();
+  await expect(page.getByText('Take it back by')).toBeVisible();
+
+  // Price-drop check on a big Best Buy purchase.
+  await page.goto('/#/receipts');
+  await page.getByLabel('Search receipts').fill('tv');
+  await page.getByRole('button', { name: /55" TV/ }).click();
+  await expect(page.getByText('Price-drop refund until')).toBeVisible();
+  await expect(page.getByRole('link', { name: /Check the price/ })).toHaveAttribute('href', /bestbuy\.com/);
+  await page.getByRole('button', { name: 'No drop' }).click();
+  await expect(page.getByText('Price-drop refund until')).toHaveCount(0);
+
+  // A trial from a sentence → cancel → Savings.
+  await page.goto('/#/scan');
+  await page.getByLabel('Quick add').fill('Hulu trial ends in 5 days $9.99');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(page.getByRole('radio', { name: 'Trial or subscription' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText('Trial ends')).toBeVisible();
+  await page.getByRole('button', { name: 'I cancelled it' }).click();
+  await page.getByRole('button', { name: 'Mark as cancelled' }).click();
+  await expect(page.getByText('Saved $9.99')).toBeVisible();
+
+  // Everything at one store, with the code big for the cashier.
+  await page.goto('/#/wallet');
+  await page.getByRole('button', { name: "Everything at Kohl's" }).click();
+  await expect(page).toHaveURL(/#\/store\//);
+  await page.getByRole('button', { name: /Show/ }).first().click();
+  await expect(page.getByRole('dialog', { name: /Kohl's/ })).toBeVisible();
+  await expect(page.getByLabel('Code SAVE10NOW')).toBeVisible();
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  expect(w.errors).toEqual([]);
+  expect(w.foreign).toEqual([]);
+});

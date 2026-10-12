@@ -15,6 +15,7 @@ const WalletScreen = lazy(() => import('./screens/WalletScreen'));
 const ReceiptsScreen = lazy(() => import('./screens/ReceiptsScreen'));
 const SavingsScreen = lazy(() => import('./screens/SavingsScreen'));
 const CheckinScreen = lazy(() => import('./screens/CheckinScreen'));
+const StoreScreen = lazy(() => import('./screens/StoreScreen'));
 const SettingsScreen = lazy(() => import('./screens/SettingsScreen'));
 const PrivacyScreen = lazy(() => import('./screens/PrivacyScreen'));
 const CreditsScreen = lazy(() => import('./screens/CreditsScreen'));
@@ -76,6 +77,9 @@ export default function App() {
         break;
       case 'checkin':
         screen = <CheckinScreen />;
+        break;
+      case 'store':
+        screen = <StoreScreen key={route.store} store={route.store} />;
         break;
       case 'settings':
         screen = <SettingsScreen />;

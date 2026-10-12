@@ -185,6 +185,12 @@ export function storeSearchUrl(store: string, query: string): string {
   return `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(`${store} ${q}`.trim())}`;
 }
 
+/** Same store, however it was typed: "TARGET T-1234" and "Target" match. */
+export function sameStore(a: string, b: string): boolean {
+  const key = (s: string) => (findStore(s)?.name ?? s).trim().toLowerCase().replace(/\s+/g, ' ');
+  return !!a.trim() && key(a) === key(b);
+}
+
 /** Grocery stores (Kroger, Trader Joe's…): receipts from them count as groceries. */
 export function isGroceryStore(store: string): boolean {
   return !!findStore(store)?.grocery;

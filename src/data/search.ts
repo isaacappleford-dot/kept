@@ -20,7 +20,7 @@ export function searchCards(cards: Card[], query: string, filter: Filter, today:
         case 'wallet':
           return c.kind !== 'purchase';
         case 'returnable':
-          return c.kind === 'purchase' && c.returnStatus === 'open' && !!c.returnBy && c.returnBy >= today;
+          return c.kind === 'purchase' && (c.returnStatus === 'open' || c.returnStatus === 'returning') && !!c.returnBy && c.returnBy >= today;
         case 'returned':
           return c.kind === 'purchase' && c.returnStatus === 'returned';
         default:

@@ -61,7 +61,9 @@ export function CardRow({ card, right }: { card: Card; right?: string }) {
   const amount = card.kind === 'purchase' ? card.total : card.balance;
   const sub = [card.store || KIND_LABEL[card.kind], formatShort(card.date)];
   if (card.kind === 'purchase' && card.returnStatus === 'returned') sub.push('Returned');
-  if (card.kind !== 'purchase' && card.used) sub.push('Used');
+  if (card.kind === 'purchase' && card.returnStatus === 'returning') sub.push('Returning');
+  if (card.kind === 'renewal' && card.used) sub.push('Done');
+  else if (card.kind !== 'purchase' && card.used) sub.push('Used');
   return (
     <li>
       <button type="button" onClick={() => navigate({ name: 'card', id: card.id })} className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-white/5">

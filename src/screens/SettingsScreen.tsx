@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { APP } from '../config/app';
 import { Icon } from '../components/Icon';
 import { Button, Chip, Header, Row, Section, Toggle } from '../components/ui';
+import { MEMBERSHIPS } from '../config/policies';
 import { findStore } from '../deadlines/policy';
 import { formatMoney } from '../lib/money';
 import { importBackup } from '../data/backup';
@@ -107,6 +108,29 @@ export default function SettingsScreen() {
             icon="calendar"
             onClick={async () => void addToCalendar(deadlines(await listCards(), todayISO()), s.currency)}
           />
+        </Section>
+
+        <Section title="Memberships & cards">
+          {MEMBERSHIPS.map((m) => (
+            <Toggle
+              key={m.id}
+              label={m.label}
+              hint={m.hint}
+              checked={s.memberships.includes(m.id)}
+              onChange={(on) => setSettings({ memberships: on ? [...s.memberships, m.id] : s.memberships.filter((x) => x !== m.id) })}
+            />
+          ))}
+          <div className="px-4 py-3">
+            <p className="text-[16px]">My credit card extends warranties</p>
+            <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="My credit card extends warranties">
+              {[0, 12, 24].map((m) => (
+                <Chip key={m} active={s.cardWarrantyMonths === m} onClick={() => setSettings({ cardWarrantyMonths: m })}>
+                  {m === 0 ? 'No' : `+${m / 12} year${m > 12 ? 's' : ''}`}
+                </Chip>
+              ))}
+            </div>
+            <p className="mt-2 text-[13px] text-white/55">Many cards add a year to the maker’s warranty. Check your card’s benefits. Kept fills in the longer date on new receipts.</p>
+          </div>
         </Section>
 
         {windowRows.length > 0 && (

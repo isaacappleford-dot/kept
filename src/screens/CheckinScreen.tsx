@@ -6,6 +6,7 @@ import { Button, EmptyState, Header, Spinner } from '../components/ui';
 import { addSaving, updateCard } from '../data/db';
 import { useCards, useSavings } from '../data/hooks';
 import { cardName, KIND_LABEL, type Card } from '../data/types';
+import type { Deadline } from '../deadlines/deadlines';
 import { checkinItems } from '../deadlines/digest';
 import { checkReminders } from '../deadlines/notify';
 import { countdown, daysBetween, formatShort, relativeDay, todayISO } from '../lib/dates';
@@ -23,11 +24,11 @@ export default function CheckinScreen() {
   const money = (c: number | null) => formatMoney(c, s.currency, { whole: true });
 
   // Freeze the list when the screen opens, so decided rows stay visible (with their answer).
-  const [ids, setIds] = useState<{ returns: string[]; expiring: string[] } | null>(null);
+  const [ids, setIds] = useState<{ returns: string[]; expiring: string[]; soon: Deadline[] } | null>(null);
   useEffect(() => {
     if (!cards || ids) return;
     const it = checkinItems(cards, today, s.minReminderAmount);
-    setIds({ returns: it.returns.map((d) => d.cardId), expiring: it.expiring.map((d) => d.cardId) });
+    setIds({ returns: it.returns.map((d) => d.cardId), expiring: it.expiring.map((d) => d.cardId), soon: it.soon });
   }, [cards, ids, today, s.minReminderAmount]);
 
   const [later, setLater] = useState<Record<string, boolean>>({});
@@ -61,7 +62,7 @@ export default function CheckinScreen() {
           </div>
         )}
 
-        {ids && returns.length + expiring.length === 0 && (
+        {ids && returns.length + expiring.length + ids.soon.length === 0 && (
           <EmptyState icon="check" title="Nothing to decide this week">
             <p className="text-[15px] text-white/60">No returns still open and nothing about to expire.</p>
           </EmptyState>
@@ -73,7 +74,18 @@ export default function CheckinScreen() {
             <ul className="space-y-2">
               {returns.map((c) => {
                 const left = c.returnBy ? countdown(Math.max(0, daysBetween(today, c.returnBy))) : '';
-                const status = c.returnStatus === 'kept' ? 'Keeping it' : c.returnStatus === 'returned' ? 'Returned' : later[c.id] ? 'Decide later' : null;
+                const status =
+                  c.returnStatus === 'kept'
+                    ? 'Keeping it'
+                    : c.returnStatus === 'returned'
+                      ? 'Returned'
+                      : c.returnStatus === 'returning'
+                        ? c.returnMethod === 'mail'
+                          ? 'Mailing it back'
+                          : 'Taking it back'
+                        : later[c.id]
+                          ? 'Decide later'
+                          : null;
                 return (
                   <li key={c.id} className={`rounded-2xl bg-white/5 p-3 ${status ? 'opacity-60' : ''}`}>
                     <div className="flex items-center gap-3">
@@ -126,6 +138,32 @@ export default function CheckinScreen() {
                       </span>
                       <span className="block truncate text-[13px] text-white/55">
                         {c.used ? 'Used' : c.expires ? `Expires ${relativeDay(c.expires, today)} · ${formatShort(c.expires, today)}` : ''}
+                      </span>
+                    </span>
+                    <Icon name="arrow" size={18} className="text-white/40" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {ids && ids.soon.length > 0 && (
+          <section className="mb-6">
+            <h2 className="mb-1 px-1 text-[13px] font-semibold uppercase tracking-wide text-white/45">Also this week</h2>
+            <ul className="divide-y divide-white/10 overflow-hidden rounded-2xl bg-white/5">
+              {ids.soon.map((d) => (
+                <li key={d.key}>
+                  <button type="button" className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-white/5" onClick={() => navigate({ name: 'card', id: d.cardId })}>
+                    <Icon name={d.kind === 'price' ? 'trend' : d.kind === 'refund' ? 'box' : 'repeat'} size={22} className="shrink-0 text-white/60" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[16px] font-medium">{d.kind === 'charge' ? d.card.title || d.store : d.name}</span>
+                      <span className="block truncate text-[13px] text-white/55">
+                        {d.kind === 'price'
+                          ? `Check for a lower price at ${d.store || 'the store'} (until ${formatShort(d.date, today)})`
+                          : d.kind === 'refund'
+                            ? 'Did the refund arrive?'
+                            : `${/\btrial\b/i.test(d.card.title) ? 'Ends' : 'Renews'} ${relativeDay(d.date, today)}${d.amount ? ` · ${money(d.amount)}` : ''}`}
                       </span>
                     </span>
                     <Icon name="arrow" size={18} className="text-white/40" />

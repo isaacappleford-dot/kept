@@ -81,6 +81,10 @@ export async function receiptPdf(card: Card, currency: string): Promise<File> {
     if (card.returnBy) row('Return by', formatLong(card.returnBy));
     if (card.warrantyUntil) row('Warranty until', formatLong(card.warrantyUntil));
     if (card.extendedWarrantyUntil) row('Extended warranty', formatLong(card.extendedWarrantyUntil));
+  } else if (card.kind === 'renewal') {
+    row('Amount', formatMoney(card.total, currency));
+    if (card.expires) row('Charges on', formatLong(card.expires));
+    row('Repeats', { none: 'Once', monthly: 'Monthly', yearly: 'Yearly' }[card.repeat]);
   } else {
     row('Balance', formatMoney(card.balance, currency));
     row('Code', card.code);

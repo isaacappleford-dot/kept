@@ -71,3 +71,28 @@ describe('return dates from the receipt', () => {
     expect(r.draft.returnBy).toBe('2026-11-08');
   });
 });
+
+describe('grocery stores and card perks', () => {
+  it('treats grocery-store receipts as groceries unless items say otherwise', () => {
+    const text = "TRADER JOE'S\n10/09/2026\nPASTA 2.99\nSALSA 3.49\nTOTAL 6.48";
+    expect(draftFromReceipt(parseReceipt(text, today), text, today).draft.category).toBe('grocery');
+    const tv = "KROGER\n10/09/2026\nROKU STREAMING STICK 39.99\nTOTAL 39.99";
+    expect(draftFromReceipt(parseReceipt(tv, today), tv, today).draft.category).toBe('tv');
+  });
+
+  it('fills in the longer warranty from a credit card', () => {
+    const text = 'BEST BUY\n10/01/2026\nAPPLE MACBOOK AIR 13  999.00\nTOTAL 1,079.00';
+    const { draft } = draftFromReceipt(parseReceipt(text, today), text, today, { cardWarrantyMonths: 12 });
+    expect(draft.warrantyUntil).toBe('2027-10-01');
+    expect(draft.extendedWarrantyUntil).toBe('2028-10-01');
+  });
+
+  it('makes a trial from a sentence', () => {
+    const s = 'Netflix trial ends Friday $15.49';
+    const { draft } = draftFromQuickAdd(parseQuickAdd(s, today), s, today);
+    expect(draft.kind).toBe('renewal');
+    expect(draft.expires).toBe('2026-10-16');
+    expect(draft.total).toBe(1549);
+    expect(draft.returnBy).toBeNull();
+  });
+});
