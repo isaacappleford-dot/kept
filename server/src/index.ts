@@ -8,7 +8,7 @@
  * so there are no secrets to configure.
  */
 import { DurableObject } from 'cloudflare:workers';
-import { validateSync, type SyncRequest } from './protocol';
+import { combine, validateSync, type SyncRequest } from './protocol';
 import { generateVapidKeys, sendPush, type VapidKeys } from './webpush';
 
 export interface Env {
@@ -119,22 +119,25 @@ export class PushStore extends DurableObject<Env> {
       )
       .toArray();
 
+    // Everything due for one phone right now goes out as ONE notification.
+    const byPhone = new Map<string, typeof due>();
+    for (const r of due) byPhone.set(r.sub_id, [...(byPhone.get(r.sub_id) ?? []), r]);
+    const groups = [...byPhone.values()];
+
     let retry = false;
-    for (let i = 0; i < due.length; i += 20) {
+    for (let i = 0; i < groups.length; i += 20) {
       await Promise.all(
-        due.slice(i, i + 20).map(async (r) => {
+        groups.slice(i, i + 20).map(async (rows) => {
+          const sub = rows[0];
           try {
-            const res = await sendPush(
-              { endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } },
-              { title: r.title, body: r.body, url: r.url, tag: r.key },
-              keys,
-              this.env.VAPID_SUBJECT,
-            );
+            const res = await sendPush({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, combine(rows), keys, this.env.VAPID_SUBJECT);
             if (res.gone) {
-              await this.unsubscribe(r.endpoint);
+              await this.unsubscribe(sub.endpoint);
             } else if (res.ok) {
-              this.sql.exec(`DELETE FROM reminders WHERE sub_id = ? AND key = ?`, r.sub_id, r.key);
-              this.sql.exec(`INSERT OR REPLACE INTO sent (sub_id, key, at) VALUES (?, ?, ?)`, r.sub_id, r.key, now);
+              for (const r of rows) {
+                this.sql.exec(`DELETE FROM reminders WHERE sub_id = ? AND key = ?`, r.sub_id, r.key);
+                this.sql.exec(`INSERT OR REPLACE INTO sent (sub_id, key, at) VALUES (?, ?, ?)`, r.sub_id, r.key, now);
+              }
             } else retry = true;
           } catch {
             retry = true;

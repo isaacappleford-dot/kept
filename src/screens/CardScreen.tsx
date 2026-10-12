@@ -8,6 +8,7 @@ import { addSaving, deleteCard, deleteSavingsFor, updateCard } from '../data/db'
 import { useCard, useImageUrl, useSavings } from '../data/hooks';
 import { cardName, KIND_LABEL, type Card } from '../data/types';
 import { deadlines, type Deadline } from '../deadlines/deadlines';
+import { remindable } from '../deadlines/filters';
 import { checkReminders } from '../deadlines/notify';
 import { addToCalendar, shareReceiptPdf } from '../export/actions';
 import { countdown, formatLong, todayISO } from '../lib/dates';
@@ -48,7 +49,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 type Ask = null | 'returned' | 'warranty' | 'spend' | 'used';
 
 function CardView({ card }: { card: Card }) {
-  const { currency } = useSettings();
+  const { currency, minReminderAmount } = useSettings();
   const today = todayISO();
   const imageUrl = useImageUrl(card.hasImage ? card.id : null, 'image');
   const savings = useSavings();
@@ -176,6 +177,14 @@ function CardView({ card }: { card: Card }) {
               </Tile>
             )}
           </>
+        )}
+
+        {!isWallet && [ret, war].some((d) => d && !remindable(d, minReminderAmount)) && (
+          <p className="px-2 text-[13px] text-white/50">
+            {card.category === 'grocery'
+              ? 'Groceries don’t get reminders. They still show in Coming Up.'
+              : `No reminders for buys under ${formatMoney(minReminderAmount, currency, { whole: true })}. You can change that in Settings.`}
+          </p>
         )}
 
         {isWallet && (

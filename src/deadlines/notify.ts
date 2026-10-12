@@ -4,6 +4,8 @@ import { todayISO } from '../lib/dates';
 import { settingsStore } from '../settings';
 import { deadlines } from './deadlines';
 import { pushActive, pushSupported, enablePush, startPushSync } from './push';
+import { combine } from '../../server/src/protocol';
+import { remindable } from './filters';
 import { dueReminders } from './reminders';
 
 /**
@@ -36,17 +38,17 @@ export async function requestNotifications(): Promise<boolean> {
   }
 }
 
-async function show(title: string, body: string, tag: string, cardId: string) {
+async function show(n: { title: string; body: string; tag: string; url: string }) {
   const reg = await navigator.serviceWorker?.getRegistration?.().catch(() => undefined);
   const options: NotificationOptions = {
-    body,
-    tag,
+    body: n.body,
+    tag: n.tag,
     icon: `${import.meta.env.BASE_URL}icons/icon-192.png`,
     badge: `${import.meta.env.BASE_URL}icons/favicon-32.png`,
-    data: { url: `${import.meta.env.BASE_URL}#/card/${encodeURIComponent(cardId)}` },
+    data: { url: n.url },
   };
-  if (reg?.showNotification) await reg.showNotification(title, options);
-  else new Notification(title, options);
+  if (reg?.showNotification) await reg.showNotification(n.title, options);
+  else new Notification(n.title, options);
 }
 
 let running = false;
@@ -61,7 +63,7 @@ export async function checkReminders() {
     const list = deadlines(await listCards(), today);
 
     const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
-    const urgent = list.filter((d) => d.urgency === 'week').length;
+    const urgent = list.filter((d) => d.urgency === 'week' && remindable(d, s.minReminderAmount)).length;
     if (s.badge && nav.setAppBadge) await (urgent ? nav.setAppBadge(urgent) : nav.clearAppBadge?.())?.catch(() => {});
     else if (!s.badge) await nav.clearAppBadge?.().catch(() => {});
 
@@ -69,10 +71,18 @@ export async function checkReminders() {
     // The server already delivers these while the app is closed.
     if (await pushActive()) return;
     const fired = new Set(loadValue<string[]>(FIRED_KEY, []));
-    const due = dueReminders(list, fired, today, s.currency);
-    for (const r of due.slice(0, 5)) {
-      await show(r.title, r.body, `${r.deadline.cardId}:${r.deadline.kind}`, r.deadline.cardId).catch(() => {});
-      fired.add(r.key);
+    const due = dueReminders(
+      list.filter((d) => remindable(d, s.minReminderAmount)),
+      fired,
+      today,
+      s.currency,
+    );
+    if (due.length) {
+      const base = new URL(import.meta.env.BASE_URL, location.href).href;
+      // One notification, however many things are due.
+      const out = combine(due.map((r) => ({ key: r.key, title: r.title, body: r.body, url: `${base}#/card/${encodeURIComponent(r.deadline.cardId)}` })));
+      await show(out).catch(() => {});
+      due.forEach((r) => fired.add(r.key));
     }
     // Keep the list bounded: drop keys for deadlines long gone.
     save(FIRED_KEY, [...fired].slice(-500));

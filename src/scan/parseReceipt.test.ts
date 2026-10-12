@@ -154,3 +154,90 @@ describe('parseRelative', () => {
     expect(parseRelative('nothing here', today, 'future')).toBeNull();
   });
 });
+
+const AMAZON_EMAIL = `
+Amazon.com
+Hello Sam,
+Thanks for your order. We'll let you know once your item(s) have shipped.
+Arriving Thursday
+Order # 112-1234567-1234567
+Ordered on October 6, 2026
+Dyson V8 Cordless Vacuum Cleaner
+Qty: 1
+$349.99
+Anker USB-C Charger 65W
+Quantity: 2
+$39.98
+Item(s) Subtotal: $389.97
+Order Total: $419.21
+Get $10 off your next order with promo code SAVE10
+`;
+
+const HOME_DEPOT = `
+THE HOME DEPOT
+10/02/26 09:15 AM
+DEWALT 20V DRILL KIT   129.00
+SUBTOTAL 129.00
+TOTAL 139.97
+RETURN POLICY DEFINITIONS
+POLICY ID  DAYS  POLICY EXPIRES ON
+A          90    12/31/2026
+`;
+
+const BOUTIQUE = `
+Rosie's Boutique
+09/30/2026
+Silk Scarf 45.00
+TOTAL 45.00
+Returns accepted within 14 days with receipt.
+`;
+
+const PRINTED = `
+CORNER HARDWARE
+10/01/2026
+HAMMER 19.99
+TOTAL 21.59
+RETURN BY: 10/31/2026
+`;
+
+describe('order emails and printed return dates', () => {
+  it('reads an order email: order date, delivery, items on their own lines, not a coupon', () => {
+    const r = parseReceipt(AMAZON_EMAIL, today);
+    expect(r.kind).toBe('purchase');
+    expect(r.store).toBe('Amazon');
+    expect(r.date).toBe('2026-10-06');
+    expect(r.online).toBe(true);
+    expect(r.deliveryDate).toBe('2026-10-15');
+    expect(r.total).toBe(41921);
+    expect(r.items).toEqual([
+      { name: 'Dyson V8 Cordless Vacuum Cleaner', price: 34999 },
+      { name: 'Anker Usb-C Charger 65w', price: 3998 },
+    ]);
+  });
+
+  it('uses an exact printed return date and does not mistake it for the purchase date', () => {
+    const r = parseReceipt(PRINTED, today);
+    expect(r.date).toBe('2026-10-01');
+    expect(r.printedReturnBy).toBe('2026-10-31');
+  });
+
+  it('reads "policy expires on" tables', () => {
+    const r = parseReceipt(HOME_DEPOT, today);
+    expect(r.store).toBe('The Home Depot');
+    expect(r.date).toBe('2026-10-02');
+    expect(r.printedReturnBy).toBe('2026-12-31');
+  });
+
+  it('reads "within N days"', () => {
+    const r = parseReceipt(BOUTIQUE, today);
+    expect(r.printedReturnBy).toBeNull();
+    expect(r.printedReturnDays).toBe(14);
+  });
+
+  it('ignores past "delivered" dates far away and missing return lines', () => {
+    const r = parseReceipt(TARGET, today);
+    expect(r.printedReturnBy).toBeNull();
+    expect(r.printedReturnDays).toBe(90);
+    expect(r.deliveryDate).toBeNull();
+  });
+});

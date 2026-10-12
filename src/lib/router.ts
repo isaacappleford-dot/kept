@@ -13,11 +13,12 @@ export type Route =
   | { name: 'wallet' }
   | { name: 'receipts' }
   | { name: 'savings' }
+  | { name: 'checkin' }
   | { name: 'settings' }
   | { name: 'privacy' }
   | { name: 'credits' };
 
-const SIMPLE = ['scan', 'review', 'wallet', 'receipts', 'savings', 'settings', 'privacy', 'credits'] as const;
+const SIMPLE = ['scan', 'review', 'wallet', 'receipts', 'savings', 'checkin', 'settings', 'privacy', 'credits'] as const;
 
 export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean);

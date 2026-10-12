@@ -2,12 +2,13 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { CATEGORIES, STORES, type CategoryId } from '../config/policies';
 import type { CardDraft, CardKind, LineItem } from '../data/types';
 import { KIND_LABEL } from '../data/types';
-import { suggestReturnBy, suggestWarranty } from '../deadlines/policy';
-import { isISODate, type ISODate } from '../lib/dates';
+import { findStore, returnClockStart, storeKey, suggestReturnBy, suggestWarranty } from '../deadlines/policy';
+import { daysBetween, isISODate, type ISODate } from '../lib/dates';
 import { centsToInput, parseAmount } from '../lib/money';
 import { withSuggestions, type FixedField } from '../scan/toDraft';
 import type { ParsedReceipt } from '../scan/parseReceipt';
 import { Icon } from './Icon';
+import { setSettings, settingsStore, useSettings } from '../settings';
 import { Button, Chip, Field, Section, TextInput, Toggle } from './ui';
 
 type Unsure = ParsedReceipt['unsure'][number];
@@ -64,14 +65,20 @@ export interface CardFormProps {
   unsure?: Unsure[];
   fixed?: FixedField[];
   imageUrl?: string | null;
+  /** Shown under "Return by" while it still holds the date read from the receipt. */
+  returnNote?: string | null;
   heading?: ReactNode;
   saveLabel: string;
   onSave: (d: CardDraft) => void | Promise<void>;
   onCancel: () => void;
 }
 
-export function CardForm({ initial, unsure = [], fixed: initialFixed = [], imageUrl, heading, saveLabel, onSave, onCancel }: CardFormProps) {
+export function CardForm({ initial, unsure = [], fixed: initialFixed = [], imageUrl, returnNote, heading, saveLabel, onSave, onCancel }: CardFormProps) {
+  const { storeWindows: windows } = useSettings();
   const [d, setD] = useState<CardDraft>(initial);
+  /** The user changed "Return by" by hand in this form (offer to remember it for the store). */
+  const [editedReturn, setEditedReturn] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [fixed, setFixed] = useState<FixedField[]>(initialFixed);
   const [checked, setChecked] = useState<Set<Unsure>>(new Set());
   const [saving, setSaving] = useState(false);
@@ -80,21 +87,34 @@ export function CardForm({ initial, unsure = [], fixed: initialFixed = [], image
 
   /** Updates fields and re-suggests dates the user hasn't set by hand. */
   const update = (patch: Partial<CardDraft>, touched?: Unsure) => {
-    setD((prev) => withSuggestions({ ...prev, ...patch }, fixed));
+    setD((prev) => withSuggestions({ ...prev, ...patch }, fixed, windows));
     if (touched) setChecked((s) => new Set(s).add(touched));
   };
   const setFixedDate = (field: FixedField, v: ISODate | null) => {
     if (!fixed.includes(field)) setFixed([...fixed, field]);
+    if (field === 'returnBy') setEditedReturn(true);
     setD((prev) => ({ ...prev, [field]: v }));
   };
   const unfix = (field: FixedField) => {
     const next = fixed.filter((f) => f !== field);
     setFixed(next);
-    setD((prev) => withSuggestions(prev, next));
+    if (field === 'returnBy') setEditedReturn(false);
+    setD((prev) => withSuggestions(prev, next, windows));
   };
   const isUnsure = (f: Unsure) => unsure.includes(f) && !checked.has(f);
 
-  const ret = useMemo(() => (isPurchase ? suggestReturnBy(d) : null), [isPurchase, d]);
+  const ret = useMemo(() => (isPurchase ? suggestReturnBy(d, windows) : null), [isPurchase, d, windows]);
+  const fromReceipt = !!returnNote && !editedReturn && fixed.includes('returnBy') && d.returnBy === initial.returnBy;
+
+  /** "Always use 60 days for Target": offered when the user typed a different window for a store. */
+  const rememberable = useMemo(() => {
+    if (!isPurchase || !editedReturn || !d.returnBy || !d.store.trim()) return null;
+    const key = storeKey(d.store, d.category);
+    const days = daysBetween(returnClockStart(d), d.returnBy);
+    if (!key || days < 1 || days > 730 || days === ret?.days) return null;
+    const name = findStore(d.store)?.name ?? d.store.trim();
+    return { key, days, label: `${name}${key.endsWith('|electronics') ? ' electronics' : ''}` };
+  }, [isPurchase, editedReturn, d, ret]);
   const war = useMemo(() => (isPurchase ? suggestWarranty(d.category, d.online && d.deliveryDate ? d.deliveryDate : d.date) : null), [isPurchase, d.category, d.online, d.deliveryDate, d.date]);
 
   const setItem = (i: number, patch: Partial<LineItem>) => update({ items: d.items.map((it, j) => (j === i ? { ...it, ...patch } : it)) }, 'items');
@@ -111,6 +131,9 @@ export function CardForm({ initial, unsure = [], fixed: initialFixed = [], image
         items: d.items.filter((i) => i.name.trim()).map((i) => ({ ...i, name: i.name.trim() })),
         balance: d.kind === 'purchase' ? null : (d.balance ?? d.total),
       };
+      if (rememberable && remember) {
+        setSettings({ storeWindows: { ...settingsStore.get().storeWindows, [rememberable.key]: rememberable.days } });
+      }
       await onSave(clean);
     } finally {
       setSaving(false);
@@ -184,10 +207,24 @@ export function CardForm({ initial, unsure = [], fixed: initialFixed = [], image
             )}
             <Field
               label="Return by"
-              hint={<Suggestion text={ret?.reason ?? ''} show={fixed.includes('returnBy') && ret?.date !== d.returnBy} onUse={() => unfix('returnBy')} />}
+              hint={
+                <Suggestion
+                  text={fromReceipt ? `${returnNote} ${ret?.reason ?? ''}` : (ret?.reason ?? '')}
+                  show={fixed.includes('returnBy') && ret?.date !== d.returnBy}
+                  onUse={() => unfix('returnBy')}
+                />
+              }
             >
               <DateInput label="Return by" optional value={d.returnBy} onChange={(v) => setFixedDate('returnBy', v)} />
             </Field>
+            {rememberable && (
+              <Toggle
+                label={`Always use ${rememberable.days} days for ${rememberable.label}`}
+                hint="Kept will suggest this next time. Change it any time in Settings."
+                checked={remember}
+                onChange={setRemember}
+              />
+            )}
             <Field label="Category">
               <select
                 value={d.category}

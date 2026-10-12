@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { APP } from '../config/app';
-import { Button, Header, Row, Section, Toggle } from '../components/ui';
-import { exportBackup, importBackup } from '../data/backup';
+import { Icon } from '../components/Icon';
+import { Button, Chip, Header, Row, Section, Toggle } from '../components/ui';
+import { findStore } from '../deadlines/policy';
+import { formatMoney } from '../lib/money';
+import { importBackup } from '../data/backup';
+import { saveBackupFile } from '../data/backupActions';
 import { clearAll, listCards } from '../data/db';
 import { formatBytes, isPersisted, requestPersistence, storageUsage, type Usage } from '../data/storage';
 import { deadlines } from '../deadlines/deadlines';
@@ -9,13 +13,22 @@ import { checkReminders, notificationPermission, requestNotifications } from '..
 import { disablePush, pushSupported } from '../deadlines/push';
 import { loadSampleData } from '../demo/sampleData';
 import { addToCalendar, shareInventory } from '../export/actions';
-import { shareOrDownload } from '../export/share';
 import { isIOS, isStandalone } from '../lib/platform';
 import { formatShort, todayISO } from '../lib/dates';
 import { back, navigate } from '../lib/router';
 import { toast } from '../lib/toast';
 import { dismissInstall, useInstall } from '../pwa/install';
 import { setSettings, useSettings } from '../settings';
+
+/** Reminder cut-offs offered in Settings, in cents. */
+const CUTOFFS = [0, 1000, 2000, 5000];
+
+/** "target|electronics" → "Target electronics". */
+function windowLabel(key: string): string {
+  const [name, kind] = key.split('|');
+  const known = findStore(name)?.name ?? name.replace(/\b\w/g, (c) => c.toUpperCase());
+  return kind ? `${known} ${kind}` : known;
+}
 
 const CURRENCIES = ['USD', 'CAD', 'EUR', 'GBP', 'AUD', 'NZD', 'JPY', 'INR', 'MXN', 'CHF', 'SEK', 'NOK', 'DKK'];
 
@@ -26,6 +39,9 @@ export default function SettingsScreen() {
   const [usage, setUsage] = useState<Usage | null>(null);
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [perm, setPerm] = useState(notificationPermission());
+  const windowRows = Object.entries(s.storeWindows)
+    .map(([key, days]) => ({ key, days, label: windowLabel(key) }))
+    .sort((a, b) => a.label.localeCompare(b.label));
 
   useEffect(() => {
     void storageUsage().then(setUsage);
@@ -68,6 +84,23 @@ export default function SettingsScreen() {
             setSettings({ badge: v });
             void checkReminders();
           }} />
+          <Toggle
+            label="Sunday check-in"
+            hint="A weekly note with what you can still return or use"
+            checked={s.checkin}
+            onChange={(v) => setSettings({ checkin: v })}
+          />
+          <div className="px-4 py-3">
+            <p className="text-[16px]">Skip reminders for buys under</p>
+            <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Skip reminders for buys under">
+              {CUTOFFS.map((c) => (
+                <Chip key={c} active={s.minReminderAmount === c} onClick={() => setSettings({ minReminderAmount: c })}>
+                  {c ? formatMoney(c, s.currency, { whole: true }) : 'Remind me for all'}
+                </Chip>
+              ))}
+            </div>
+            <p className="mt-2 text-[13px] text-white/55">Groceries never get reminders. Coupons and gift cards always do. Everything still shows in Coming Up.</p>
+          </div>
           <Row
             label="Add all deadlines to Calendar"
             hint="A backup: your calendar alerts you too"
@@ -75,6 +108,30 @@ export default function SettingsScreen() {
             onClick={async () => void addToCalendar(deadlines(await listCards(), todayISO()), s.currency)}
           />
         </Section>
+
+        {windowRows.length > 0 && (
+          <Section title="Your return windows">
+            {windowRows.map((w) => (
+              <div key={w.key} className="flex min-h-[52px] items-center gap-3 px-4">
+                <span className="flex-1 text-[16px]">
+                  {w.label} <span className="text-white/55">· {w.days} days</span>
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Forget ${w.label}`}
+                  className="flex h-10 w-10 items-center justify-center text-white/45"
+                  onClick={() => {
+                    const next = { ...s.storeWindows };
+                    delete next[w.key];
+                    setSettings({ storeWindows: next });
+                  }}
+                >
+                  <Icon name="close" size={18} />
+                </button>
+              </div>
+            ))}
+          </Section>
+        )}
 
         <Section title="Scanning">
           <Toggle label="Read receipts automatically" hint="Text is read on this phone. Turn off to type details yourself." checked={s.autoRead} onChange={(v) => setSettings({ autoRead: v })} />
@@ -97,19 +154,12 @@ export default function SettingsScreen() {
         <Section title="Backup">
           <div className="px-4 py-3 text-[14px] text-white/75">
             <p>Your receipts live only on this phone{usage ? ` (${formatBytes(usage.used)})` : ''}. Save a backup to iCloud Drive, Google Drive or Files to move phones or be safe.</p>
-            <p className="mt-1 text-[13px] text-white/50">{s.lastBackupAt ? `Last backup: ${formatShort(new Date(s.lastBackupAt).toISOString().slice(0, 10))}` : 'No backup yet.'}</p>
+            <p className="mt-1 text-[13px] text-white/50">{s.lastBackupAt ? `Last backup: ${formatShort(todayISO(new Date(s.lastBackupAt)))}` : 'No backup yet.'}</p>
           </div>
           <Row
             label="Save a backup"
             icon="download"
-            onClick={async () => {
-              const blob = await exportBackup();
-              const outcome = await shareOrDownload(new File([blob], `${APP.filePrefix}-backup-${todayISO()}.json`, { type: 'application/json' }));
-              if (outcome === 'shared' || outcome === 'downloaded') {
-                setSettings({ lastBackupAt: Date.now() });
-                toast('Backup saved');
-              } else if (outcome === 'needs-gesture') toast('Tap again to save');
-            }}
+            onClick={() => void saveBackupFile()}
           />
           <Row label="Restore from a backup" hint="Adds its cards to this phone" onClick={() => restore.current?.click()} />
           <input

@@ -33,3 +33,44 @@ export function validateSync(x: unknown, opts: { allowLocalEndpoints?: boolean }
   }
   return null;
 }
+
+/** Keys of weekly check-in reminders start with this. */
+export const DIGEST_PREFIX = 'digest:';
+
+export interface Outgoing {
+  title: string;
+  body: string;
+  url: string;
+  tag: string;
+}
+
+const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s);
+
+/**
+ * Turns everything due for one phone at the same moment into ONE notification,
+ * so people get at most one buzz a day. A weekly check-in already sums up the
+ * week, so it leads and the rest are listed after it.
+ */
+export function combine(items: Array<Pick<ScheduledReminder, 'key' | 'title' | 'body' | 'url'>>): Outgoing {
+  if (items.length === 1) {
+    const [r] = items;
+    return { title: r.title, body: r.body, url: r.url, tag: r.key };
+  }
+  const digest = items.find((r) => r.key.startsWith(DIGEST_PREFIX));
+  const rest = items.filter((r) => r !== digest);
+  if (digest) {
+    return {
+      title: digest.title,
+      body: clip(`${digest.body}${digest.body ? ' ' : ''}Also: ${rest.map((r) => r.title).join('; ')}.`, 400),
+      url: digest.url,
+      tag: digest.key,
+    };
+  }
+  return {
+    title: `${items.length} reminders today`,
+    body: clip(items.map((r) => r.title).join(' · '), 400),
+    // Several cards: open Coming Up rather than one of them.
+    url: `${items[0].url.split('#')[0]}#/`,
+    tag: `bundle:${items[0].key}`,
+  };
+}

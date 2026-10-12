@@ -55,6 +55,24 @@ export interface ReturnInput {
   category: CategoryId;
 }
 
+/** Return windows the user chose for a store, in days, keyed by storeKey(). */
+export type StoreWindows = Record<string, number>;
+
+/** Key for a store's remembered window; electronics are remembered separately when the store treats them differently. */
+export function storeKey(store: string, category: CategoryId): string | null {
+  const known = findStore(store);
+  const name = (known?.name ?? store).trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!name) return null;
+  const split = !!known && known.electronicsDays !== undefined && known.electronicsDays !== known.returnDays;
+  return split && categoryById(category).electronics ? `${name}|electronics` : name;
+}
+
+/** Day the return clock starts: delivery for online orders when known, else the purchase date. */
+export function returnClockStart(input: Pick<ReturnInput, 'date' | 'online' | 'deliveryDate' | 'store'>): ISODate {
+  const online = input.online || !!findStore(input.store)?.online;
+  return online && input.deliveryDate ? input.deliveryDate : input.date;
+}
+
 function holidayUntil(p: StorePolicy, start: ISODate): ISODate | null {
   const h = p.holiday;
   if (!h) return null;
@@ -64,13 +82,23 @@ function holidayUntil(p: StorePolicy, start: ISODate): ISODate | null {
   return `${y + 1}-${h.until}`;
 }
 
-export function suggestReturnBy(input: ReturnInput): ReturnSuggestion {
+export function suggestReturnBy(input: ReturnInput, windows: StoreWindows = {}): ReturnSuggestion {
   const policy = findStore(input.store);
   const online = input.online || !!policy?.online;
   const start = online && input.deliveryDate ? input.deliveryDate : input.date;
   const needsDelivery = online && !input.deliveryDate;
   const electronics = !!categoryById(input.category).electronics;
   const from = online && input.deliveryDate ? 'from delivery' : 'from purchase';
+
+  const key = storeKey(input.store, input.category);
+  const mine = key ? windows[key] : undefined;
+  if (mine !== undefined && mine > 0) {
+    const holiday = policy ? holidayUntil(policy, start) : null;
+    const date = maxDate(addDays(start, mine), holiday)!;
+    const name = policy?.name ?? input.store.trim();
+    const what = key!.endsWith('|electronics') ? ' for electronics' : '';
+    return { date, days: mine, reason: `You set ${name} to ${mine} days${what}.`, needsDelivery };
+  }
 
   if (!policy) {
     return {

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon, type IconName } from '../components/Icon';
-import { Button, Header } from '../components/ui';
+import { Button, Header, Sheet } from '../components/ui';
 import type { CardKind } from '../data/types';
 import { back, navigate } from '../lib/router';
 import { toast } from '../lib/toast';
 import { warmUpOcr } from '../scan/ocr';
-import { processFile, processSample, startManual, startQuickAdd } from '../scan/pipeline';
+import { processFile, processSample, processText, startManual, startQuickAdd } from '../scan/pipeline';
 import { useSettings } from '../settings';
 
 function BigOption({ icon, title, hint, onClick, primary }: { icon: IconName; title: string; hint: string; onClick: () => void; primary?: boolean }) {
@@ -35,6 +35,23 @@ export default function ScanScreen() {
   const kindHint = useRef<CardKind>('purchase');
   const [busy, setBusy] = useState<{ p: number; label: string } | null>(null);
   const [sentence, setSentence] = useState('');
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasted, setPasted] = useState('');
+  const canReadClipboard = typeof navigator !== 'undefined' && typeof navigator.clipboard?.readText === 'function';
+
+  const openPaste = async () => {
+    setPasted('');
+    setPasteOpen(true);
+    // On iPhone this shows a small "Paste" bubble; if it's declined, the box below still takes a long-press paste.
+    if (canReadClipboard) {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text.trim()) setPasted(text);
+      } catch {
+        /* not allowed: paste by hand */
+      }
+    }
+  };
 
   useEffect(() => {
     // Start loading the text reader while the user lines up the shot.
@@ -78,6 +95,7 @@ export default function ScanScreen() {
       <div className="mx-auto max-w-lg space-y-3 px-3">
         <BigOption primary icon="camera" title="Scan a receipt" hint="Flat, in good light, edges in view" onClick={() => pick('camera')} />
         <BigOption icon="image" title="Screenshot, photo or PDF" hint="Online order emails: screenshot or save as PDF" onClick={() => pick('library')} />
+        <BigOption icon="clipboard" title="Paste an order email" hint="Copy the email’s text (or a receipt photo’s), then tap here" onClick={() => void openPaste()} />
         <BigOption icon="tag" title="Coupon, gift card or store credit" hint="Scan it to keep it in your Wallet" onClick={() => pick('camera', 'coupon')} />
 
         <form
@@ -132,6 +150,50 @@ export default function ScanScreen() {
           <Icon name="lock" size={12} className="inline align-[-1px]" /> Receipts are read on this phone. Nothing is uploaded.
         </p>
       </div>
+
+      <Sheet open={pasteOpen} onClose={() => setPasteOpen(false)} title="Paste an order email">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!pasted.trim()) return;
+            processText(pasted);
+            setPasteOpen(false);
+            navigate({ name: 'review' }, { replace: true });
+          }}
+        >
+          <p className="mb-2 px-1 text-[13px] text-white/60">
+            In Mail, press and hold the order email’s text, tap <strong>Select All</strong> then <strong>Copy</strong>. Paste it here. It’s read on this phone only.
+          </p>
+          <textarea
+            aria-label="Order email text"
+            rows={7}
+            value={pasted}
+            onChange={(e) => setPasted(e.target.value)}
+            placeholder="Press and hold here, then tap Paste"
+            className="block w-full resize-none rounded-xl bg-white/5 px-3 py-2 text-[15px] text-white placeholder:text-white/30 focus:outline focus:outline-2 focus:outline-accent"
+          />
+          <div className="mt-3 flex gap-2">
+            {canReadClipboard && (
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={async () => {
+                  try {
+                    setPasted(await navigator.clipboard.readText());
+                  } catch {
+                    toast('Press and hold in the box, then tap Paste');
+                  }
+                }}
+              >
+                <Icon name="clipboard" size={18} /> Paste
+              </Button>
+            )}
+            <Button type="submit" className="flex-[2]" disabled={!pasted.trim()}>
+              Read it
+            </Button>
+          </div>
+        </form>
+      </Sheet>
 
       {busy && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-ink/95 px-10 text-center" role="status" aria-live="polite">
