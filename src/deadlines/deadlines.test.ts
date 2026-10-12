@@ -18,11 +18,13 @@ describe('deadlines', () => {
     const coupon = card({ kind: 'coupon', store: "Kohl's", balance: 1000, expires: '2026-10-16' });
     const used = card({ kind: 'coupon', store: "Kohl's", balance: 1000, expires: '2026-10-13', used: true });
     const list = deadlines([boots, laptop, returned, kept, coupon, used], today);
-    expect(list.map((d) => `${d.name}:${d.kind}`)).toEqual(['Boots:return', 'Coupon:expires', 'Laptop:warranty', 'Chair:warranty']);
+    // $120 at Target also gets a price-drop check (Target usually adjusts for 14 days).
+    expect(list.map((d) => `${d.name}:${d.kind}`)).toEqual(['Boots:return', 'Coupon:expires', 'Boots:price', 'Laptop:warranty', 'Chair:warranty']);
     expect(list[0].daysLeft).toBe(3);
     expect(list[0].urgency).toBe('week');
-    expect(list[2].urgency).toBe('month');
-    expect(list[3].urgency).toBe('later');
+    expect(list[2].urgency).toBe('month'); // price check, 14 days
+    expect(list[3].urgency).toBe('month'); // laptop warranty, 30 days
+    expect(list[4].urgency).toBe('later');
   });
 
   it('keeps recently missed returns for a week, but never past warranties', () => {
@@ -69,5 +71,42 @@ describe('reminders', () => {
     expect(reminderText(w, today).title).toBe('Your laptop warranty ends in 30 days');
     expect(reminderText(w, today).body).toMatch(/acting up/);
     expect(reminderText(c, today).title).toBe("Your $10 coupon at Kohl's expires Friday");
+  });
+});
+
+describe('started returns, price checks and charges', () => {
+  it('turns a mailed, dropped-off return into a refund check that stays until answered', () => {
+    const boots = card({ title: 'Boots', total: 12000, returnBy: '2026-10-14', returnStatus: 'returning', returnMethod: 'mail' });
+    expect(deadlines([boots], today).map((d) => d.kind)).toEqual(['return']);
+    const sent = { ...boots, droppedOffOn: '2026-09-20', refundCheckOn: '2026-09-30' };
+    const [d] = deadlines([sent], today);
+    expect(d.kind).toBe('refund');
+    expect(d.daysLeft).toBe(-11); // overdue, still shown
+    expect(reminderText(d, today).title).toBe('Did your $120 refund for the Boots arrive?');
+  });
+
+  it('words a started return as a drop-off or a trip to the store', () => {
+    const mail = card({ title: 'boots', store: 'Target', total: 12000, returnBy: '2026-10-14', returnStatus: 'returning', returnMethod: 'mail' });
+    const store = { ...mail, returnMethod: 'store' as const };
+    expect(reminderText(deadlines([mail], today)[0], today).title).toBe('3 days left to drop off the boots ($120)');
+    expect(reminderText(deadlines([store], today)[0], today).title).toBe('3 days left to take the boots back to Target ($120)');
+  });
+
+  it('checks price drops only for bigger buys at stores that adjust, until the user is done', () => {
+    const tv = card({ store: 'Best Buy', title: 'TV', total: 49999, category: 'tv', returnBy: '2026-10-20' });
+    const cheap = card({ store: 'Target', title: 'Socks', total: 900 });
+    const walmart = card({ store: 'Walmart', title: 'Blender', total: 9900 });
+    const done = { ...tv, id: 'done', priceStatus: 'done' as const };
+    const prices = deadlines([tv, cheap, walmart, done], today).filter((d) => d.kind === 'price');
+    expect(prices.map((d) => [d.name, d.date])).toEqual([['TV', '2026-10-20']]);
+    expect(reminderText(prices[0], today).title).toBe('Did the TV get cheaper at Best Buy?');
+  });
+
+  it('reminds before a trial or subscription charges', () => {
+    const trial = card({ kind: 'renewal', title: 'Netflix trial', store: 'Netflix', total: 1549, expires: '2026-10-16' });
+    const [d] = deadlines([trial], today);
+    expect(d.kind).toBe('charge');
+    expect(reminderText(d, today).title).toBe('Your Netflix trial ends Friday ($15.49)');
+    expect(deadlines([{ ...trial, used: true }], today)).toEqual([]);
   });
 });

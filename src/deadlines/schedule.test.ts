@@ -13,7 +13,7 @@ describe('scheduleReminders', () => {
     const now = localTime(today, 15);
     const list = deadlines([card({ store: 'Target', title: 'boots', total: 12000, returnBy: '2026-10-14' })], today);
     const s = scheduleReminders(list, today, now, opts);
-    expect(s.map((r) => r.key)).toEqual(['c1:return:2026-10-14:3', 'c1:return:2026-10-14:1', 'c1:return:2026-10-14:0']);
+    expect(s.map((r) => r.key)).toEqual(['c1:return:2026-10-14:3', 'c1:return:2026-10-14:1', 'c1:return:2026-10-14:0', 'c1:price:2026-10-25:5', 'c1:price:2026-10-25:1']);
     expect(s[0].fireAt).toBe(now);
     expect(s[0].title).toBe('3 days left to return the boots ($120)');
     expect(s[1].fireAt).toBe(localTime('2026-10-13'));

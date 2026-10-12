@@ -14,13 +14,13 @@ function Hero() {
       <g stroke="#0b0c0c" strokeOpacity="0.28" strokeWidth="5" strokeLinecap="round">
         <path d="M36 34h46M36 50h46M36 66h30M36 90h46" />
       </g>
-      <path d="M104 74h20" stroke="#7be3a6" strokeWidth="4" strokeLinecap="round" strokeDasharray="2 8" />
+      <path d="M104 74h20" stroke="#ff5a5f" strokeWidth="4" strokeLinecap="round" strokeDasharray="2 8" />
       <rect x="132" y="30" width="80" height="92" rx="14" fill="#1a1d1c" stroke="rgba(255,255,255,0.15)" />
-      <rect x="142" y="42" width="60" height="22" rx="8" fill="#ff7a6b" fillOpacity="0.2" />
-      <path d="M150 53h28" stroke="#ff7a6b" strokeWidth="5" strokeLinecap="round" />
+      <rect x="142" y="42" width="60" height="22" rx="8" fill="#ffa94d" fillOpacity="0.2" />
+      <path d="M150 53h28" stroke="#ffa94d" strokeWidth="5" strokeLinecap="round" />
       <rect x="142" y="70" width="60" height="22" rx="8" fill="rgba(255,255,255,0.06)" />
       <path d="M150 81h36" stroke="rgba(255,255,255,0.4)" strokeWidth="5" strokeLinecap="round" />
-      <circle cx="198" cy="34" r="12" fill="#7be3a6" />
+      <circle cx="198" cy="34" r="12" fill="#ff5a5f" />
       <path d="M192 34l4 4 8-8" stroke="#0b0c0c" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );

@@ -60,7 +60,7 @@ describe('return dates from the receipt', () => {
 
   it('applies a remembered store window', () => {
     const text = 'TARGET\n10/01/2026\nTHROW PILLOW 24.99\nTOTAL 24.99';
-    const r = draftFromReceipt(parseReceipt(text, today), text, today, { target: 60 });
+    const r = draftFromReceipt(parseReceipt(text, today), text, today, { windows: { target: 60 } });
     expect(r.draft.returnBy).toBe('2026-11-30');
   });
 

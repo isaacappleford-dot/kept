@@ -87,7 +87,7 @@ export default function CheckinScreen() {
                       {!status && <span className="shrink-0 text-[13px] font-semibold text-warn">{left}</span>}
                     </div>
                     {status ? (
-                      <p className="mt-2 flex items-center gap-1 px-1 text-[14px] text-accent">
+                      <p className="mt-2 flex items-center gap-1 px-1 text-[14px] text-good">
                         <Icon name="check" size={16} /> {status}
                       </p>
                     ) : (
@@ -145,8 +145,8 @@ export default function CheckinScreen() {
               </button>
             )}
             {savedThisMonth > 0 && (
-              <button type="button" onClick={() => navigate({ name: 'savings' })} className="rounded-2xl bg-accent/10 p-4 text-left active:bg-accent/20">
-                <p className="text-[22px] font-semibold tabular text-accent">{money(savedThisMonth)}</p>
+              <button type="button" onClick={() => navigate({ name: 'savings' })} className="rounded-2xl bg-good/10 p-4 text-left active:bg-good/20">
+                <p className="text-[22px] font-semibold tabular text-good">{money(savedThisMonth)}</p>
                 <p className="text-[13px] text-white/55">saved this month</p>
               </button>
             )}

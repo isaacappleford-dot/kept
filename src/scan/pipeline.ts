@@ -2,7 +2,7 @@ import { draftStore } from '../data/draft';
 import { emptyDraft, type CardKind } from '../data/types';
 import { drawSampleReceipt } from '../demo/sampleReceipt';
 import { todayISO } from '../lib/dates';
-import { settingsStore } from '../settings';
+import { suggestPrefs } from '../settings';
 import { canvasToBlob, decodeImage, prepareImage, release } from './image';
 import { recognise } from './ocr';
 import { parseReceipt } from './parseReceipt';
@@ -52,7 +52,6 @@ function labelFor(status: string) {
   return 'Reading the receipt';
 }
 
-const windows = () => settingsStore.get().storeWindows;
 
 /** Text copied from an order email (or from a receipt photo with Live Text) → a draft. */
 export function processText(text: string) {
@@ -69,13 +68,13 @@ function finish(text: string, image: { image: Blob; thumb: Blob } | null, source
     parsed.value ??= parsed.total;
     parsed.unsure = parsed.unsure.filter((u) => u !== 'items' && u !== 'total');
   }
-  const { draft, fixed, returnNote } = draftFromReceipt(parsed, text, today, windows());
+  const { draft, fixed, returnNote } = draftFromReceipt(parsed, text, today, suggestPrefs());
   draftStore.set({ draft, image, unsure: text.trim() ? parsed.unsure : ['store', 'date', 'total'], source, fixed, returnNote });
 }
 
 export function startQuickAdd(sentence: string) {
   const today = todayISO();
-  const { draft, fixed } = draftFromQuickAdd(parseQuickAdd(sentence, today), sentence, today, windows());
+  const { draft, fixed } = draftFromQuickAdd(parseQuickAdd(sentence, today), sentence, today, suggestPrefs());
   const unsure: Array<'store' | 'date' | 'total'> = [];
   if (!draft.store) unsure.push('store');
   if (draft.total === null) unsure.push('total');
@@ -84,5 +83,5 @@ export function startQuickAdd(sentence: string) {
 
 export function startManual(kind: CardKind = 'purchase') {
   const d = emptyDraft(todayISO(), kind);
-  draftStore.set({ draft: kind === 'purchase' ? withSuggestions(d, [], windows()) : d, image: null, unsure: [], source: 'manual', fixed: [], returnNote: null });
+  draftStore.set({ draft: kind === 'purchase' ? withSuggestions(d, [], suggestPrefs()) : d, image: null, unsure: [], source: 'manual', fixed: [], returnNote: null });
 }

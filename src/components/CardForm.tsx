@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { CATEGORIES, STORES, type CategoryId } from '../config/policies';
-import type { CardDraft, CardKind, LineItem } from '../data/types';
+import type { CardDraft, CardKind, LineItem, Repeat } from '../data/types';
 import { KIND_LABEL } from '../data/types';
 import { findStore, returnClockStart, storeKey, suggestReturnBy, suggestWarranty } from '../deadlines/policy';
 import { daysBetween, isISODate, type ISODate } from '../lib/dates';
@@ -8,7 +8,7 @@ import { centsToInput, parseAmount } from '../lib/money';
 import { withSuggestions, type FixedField } from '../scan/toDraft';
 import type { ParsedReceipt } from '../scan/parseReceipt';
 import { Icon } from './Icon';
-import { setSettings, settingsStore, useSettings } from '../settings';
+import { setSettings, settingsStore, suggestPrefs, useSettings } from '../settings';
 import { Button, Chip, Field, Section, TextInput, Toggle } from './ui';
 
 type Unsure = ParsedReceipt['unsure'][number];
@@ -74,7 +74,8 @@ export interface CardFormProps {
 }
 
 export function CardForm({ initial, unsure = [], fixed: initialFixed = [], imageUrl, returnNote, heading, saveLabel, onSave, onCancel }: CardFormProps) {
-  const { storeWindows: windows } = useSettings();
+  const settings = useSettings();
+  const prefs = useMemo(() => suggestPrefs(settings), [settings]);
   const [d, setD] = useState<CardDraft>(initial);
   /** The user changed "Return by" by hand in this form (offer to remember it for the store). */
   const [editedReturn, setEditedReturn] = useState(false);
@@ -87,7 +88,7 @@ export function CardForm({ initial, unsure = [], fixed: initialFixed = [], image
 
   /** Updates fields and re-suggests dates the user hasn't set by hand. */
   const update = (patch: Partial<CardDraft>, touched?: Unsure) => {
-    setD((prev) => withSuggestions({ ...prev, ...patch }, fixed, windows));
+    setD((prev) => withSuggestions({ ...prev, ...patch }, fixed, prefs));
     if (touched) setChecked((s) => new Set(s).add(touched));
   };
   const setFixedDate = (field: FixedField, v: ISODate | null) => {
@@ -99,11 +100,11 @@ export function CardForm({ initial, unsure = [], fixed: initialFixed = [], image
     const next = fixed.filter((f) => f !== field);
     setFixed(next);
     if (field === 'returnBy') setEditedReturn(false);
-    setD((prev) => withSuggestions(prev, next, windows));
+    setD((prev) => withSuggestions(prev, next, prefs));
   };
   const isUnsure = (f: Unsure) => unsure.includes(f) && !checked.has(f);
 
-  const ret = useMemo(() => (isPurchase ? suggestReturnBy(d, windows) : null), [isPurchase, d, windows]);
+  const ret = useMemo(() => (isPurchase ? suggestReturnBy(d, prefs) : null), [isPurchase, d, prefs]);
   const fromReceipt = !!returnNote && !editedReturn && fixed.includes('returnBy') && d.returnBy === initial.returnBy;
 
   /** "Always use 60 days for Target": offered when the user typed a different window for a store. */
@@ -118,10 +119,14 @@ export function CardForm({ initial, unsure = [], fixed: initialFixed = [], image
     const name = findStore(d.store)?.name ?? d.store.trim();
     return { key, days, label: `${name}${key.endsWith('|electronics') ? ' electronics' : ''}` };
   }, [isPurchase, editedReturn, d, ret]);
-  const war = useMemo(() => (isPurchase ? suggestWarranty(d.category, d.online && d.deliveryDate ? d.deliveryDate : d.date) : null), [isPurchase, d.category, d.online, d.deliveryDate, d.date]);
+  const war = useMemo(
+    () => (isPurchase ? suggestWarranty(d.category, returnClockStart(d), prefs.cardWarrantyMonths) : null),
+    [isPurchase, d, prefs.cardWarrantyMonths],
+  );
 
   const setItem = (i: number, patch: Partial<LineItem>) => update({ items: d.items.map((it, j) => (j === i ? { ...it, ...patch } : it)) }, 'items');
-  const valid = isISODate(d.date) && (d.store.trim() || d.title.trim() || d.items.length > 0);
+  const valid =
+    isISODate(d.date) && (d.kind === 'renewal' ? !!d.expires && !!(d.store.trim() || d.title.trim()) : !!(d.store.trim() || d.title.trim() || d.items.length > 0));
 
   const save = async () => {
     if (!valid || saving) return;
@@ -132,7 +137,7 @@ export function CardForm({ initial, unsure = [], fixed: initialFixed = [], image
         store: d.store.trim(),
         title: d.title.trim(),
         items: d.items.filter((i) => i.name.trim()).map((i) => ({ ...i, name: i.name.trim() })),
-        balance: d.kind === 'purchase' ? null : (d.balance ?? d.total),
+        balance: d.kind === 'purchase' || d.kind === 'renewal' ? null : (d.balance ?? d.total),
       };
       if (rememberable && remember) {
         setSettings({ storeWindows: { ...settingsStore.get().storeWindows, [rememberable.key]: rememberable.days } });
@@ -154,13 +159,39 @@ export function CardForm({ initial, unsure = [], fixed: initialFixed = [], image
       )}
 
       <div className="no-scrollbar -mx-3 mb-4 flex gap-2 overflow-x-auto px-3" role="radiogroup" aria-label="Type">
-        {(['purchase', 'coupon', 'giftcard', 'credit'] as CardKind[]).map((k) => (
-          <Chip key={k} active={d.kind === k} onClick={() => update({ kind: k, balance: k === 'purchase' ? null : (d.balance ?? d.total) })}>
-            {KIND_LABEL[k]}
+        {(['purchase', 'coupon', 'giftcard', 'credit', 'renewal'] as CardKind[]).map((k) => (
+          <Chip key={k} active={d.kind === k} onClick={() => update({ kind: k, balance: k === 'purchase' || k === 'renewal' ? null : (d.balance ?? d.total) })}>
+            {k === 'renewal' ? 'Trial or subscription' : KIND_LABEL[k]}
           </Chip>
         ))}
       </div>
 
+      {d.kind === 'renewal' ? (
+        <Section>
+          <Field label="Service">
+            <TextInput value={d.store} autoComplete="off" placeholder="e.g. Netflix, Costco" onChange={(e) => update({ store: e.target.value })} />
+          </Field>
+          <Field label="What is it?">
+            <TextInput value={d.title} placeholder="e.g. Free trial, Membership" onChange={(e) => update({ title: e.target.value })} />
+          </Field>
+          <Field label="Charges on" hint="When the trial ends or it renews. Kept reminds you 3 days and 1 day before.">
+            <DateInput label="Charges on" value={d.expires} onChange={(v) => update({ expires: v })} />
+          </Field>
+          <Field label="Amount">
+            <MoneyInput label="Amount" value={d.total} onChange={(v) => update({ total: v })} />
+          </Field>
+          <div className="px-4 py-3">
+            <p className="text-[13px] text-white/55">Repeats</p>
+            <div className="mt-2 flex gap-2" role="radiogroup" aria-label="Repeats">
+              {(['none', 'monthly', 'yearly'] as Repeat[]).map((r) => (
+                <Chip key={r} active={d.repeat === r} onClick={() => update({ repeat: r })}>
+                  {{ none: 'Just once', monthly: 'Monthly', yearly: 'Yearly' }[r]}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        </Section>
+      ) : (
       <Section>
         <Field label="Store" unsure={isUnsure('store')}>
           <TextInput value={d.store} list="known-stores" autoComplete="off" placeholder="Where from?" onChange={(e) => update({ store: e.target.value }, 'store')} />
@@ -198,6 +229,7 @@ export function CardForm({ initial, unsure = [], fixed: initialFixed = [], image
           </>
         )}
       </Section>
+      )}
 
       {isPurchase && (
         <>
@@ -247,8 +279,15 @@ export function CardForm({ initial, unsure = [], fixed: initialFixed = [], image
             >
               <DateInput label="Warranty until" optional value={d.warrantyUntil} onChange={(v) => setFixedDate('warrantyUntil', v)} />
             </Field>
-            <Field label="Extended warranty until" hint="From a protection plan or credit card, if you have one.">
-              <DateInput label="Extended warranty until" optional value={d.extendedWarrantyUntil} onChange={(v) => setD({ ...d, extendedWarrantyUntil: v })} />
+            <Field
+              label="Extended warranty until"
+              hint={
+                war?.extended && d.extendedWarrantyUntil === war.extended
+                  ? 'Your credit card’s extra warranty (Settings → Memberships & cards).'
+                  : 'From a protection plan or credit card, if you have one.'
+              }
+            >
+              <DateInput label="Extended warranty until" optional value={d.extendedWarrantyUntil} onChange={(v) => setFixedDate('extendedWarrantyUntil', v)} />
             </Field>
           </Section>
 

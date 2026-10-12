@@ -1,4 +1,5 @@
-import { CATEGORIES, categoryById, DEFAULT_RETURN_DAYS, STORES, type CategoryId, type StorePolicy } from '../config/policies';
+import { CATEGORIES, categoryById, DEFAULT_RETURN_DAYS, MEMBERSHIPS, PRICE_CHECK_MIN, STORES, type CategoryId, type MembershipId, type StorePolicy } from '../config/policies';
+import type { Card } from '../data/types';
 import { addDays, addMonths, maxDate, parts, type ISODate } from '../lib/dates';
 
 const norm = (s: string) => ` ${s.toLowerCase().replace(/[^a-z0-9.'&-]+/g, ' ').trim()} `;
@@ -60,6 +61,14 @@ export interface ReturnInput {
 /** Return windows the user chose for a store, in days, keyed by storeKey(). */
 export type StoreWindows = Record<string, number>;
 
+/** The user's own settings that change suggestions. */
+export interface SuggestPrefs {
+  windows?: StoreWindows;
+  memberships?: readonly MembershipId[];
+  /** Months a credit card adds to manufacturer warranties (0 = none). */
+  cardWarrantyMonths?: number;
+}
+
 /** Key for a store's remembered window; electronics are remembered separately when the store treats them differently. */
 export function storeKey(store: string, category: CategoryId): string | null {
   const known = findStore(store);
@@ -84,7 +93,8 @@ function holidayUntil(p: StorePolicy, start: ISODate): ISODate | null {
   return `${y + 1}-${h.until}`;
 }
 
-export function suggestReturnBy(input: ReturnInput, windows: StoreWindows = {}): ReturnSuggestion {
+export function suggestReturnBy(input: ReturnInput, prefs: SuggestPrefs = {}): ReturnSuggestion {
+  const windows = prefs.windows ?? {};
   const policy = findStore(input.store);
   const online = input.online || !!policy?.online;
   const start = online && input.deliveryDate ? input.deliveryDate : input.date;
@@ -110,18 +120,25 @@ export function suggestReturnBy(input: ReturnInput, windows: StoreWindows = {}):
       needsDelivery,
     };
   }
-  const days = electronics && policy.electronicsDays !== undefined ? policy.electronicsDays : policy.returnDays;
+  let days = electronics && policy.electronicsDays !== undefined ? policy.electronicsDays : policy.returnDays;
+  // Store cards and memberships: a longer window, or extra days on top.
+  const perk = policy.perks?.find((p) => prefs.memberships?.includes(p.membership));
+  const perkName = perk ? MEMBERSHIPS.find((m) => m.id === perk.membership)?.label : undefined;
+  if (perk?.returnDays !== undefined) days = Math.max(days ?? 0, perk.returnDays);
+  else if (perk?.extraDays && days !== null) days += perk.extraDays;
   if (days === null) {
     return { date: null, days: null, reason: `${policy.name} usually has no fixed return limit.`, needsDelivery };
   }
   const normal = addDays(start, days);
   const holiday = holidayUntil(policy, start);
   const date = maxDate(normal, holiday)!;
-  const what = electronics && policy.electronicsDays !== undefined ? ' for electronics' : '';
+  const what = electronics && policy.electronicsDays !== undefined && !perk ? ' for electronics' : '';
   const reason =
     holiday && date === holiday
       ? `${policy.name} extends holiday returns to ${holiday.slice(5).replace('-', '/')}.`
-      : `${policy.name} usually allows ${days} days${what}, ${from}.`;
+      : perk
+        ? `${days} days with your ${perkName}, ${from}.`
+        : `${policy.name} usually allows ${days} days${what}, ${from}.`;
   return { date, days, reason, needsDelivery, holiday: !!holiday };
 }
 
@@ -129,11 +146,46 @@ export interface WarrantySuggestion {
   date: ISODate | null;
   months: number;
   reason: string;
+  /** With a credit card that extends warranties: the longer date. */
+  extended: ISODate | null;
 }
 
-export function suggestWarranty(category: CategoryId, date: ISODate): WarrantySuggestion {
+export function suggestWarranty(category: CategoryId, date: ISODate, cardWarrantyMonths = 0): WarrantySuggestion {
   const c = categoryById(category);
-  if (!c.warrantyMonths) return { date: null, months: 0, reason: `${c.label} usually has no manufacturer warranty.` };
+  if (!c.warrantyMonths) return { date: null, months: 0, reason: `${c.label} usually has no manufacturer warranty.`, extended: null };
   const years = c.warrantyMonths % 12 === 0 ? `${c.warrantyMonths / 12} year${c.warrantyMonths > 12 ? 's' : ''}` : `${c.warrantyMonths} months`;
-  return { date: addMonths(date, c.warrantyMonths), months: c.warrantyMonths, reason: `Most ${c.label.toLowerCase()} comes with ${years} of coverage.` };
+  return {
+    date: addMonths(date, c.warrantyMonths),
+    months: c.warrantyMonths,
+    reason: `Most ${c.label.toLowerCase()} comes with ${years} of coverage.`,
+    extended: cardWarrantyMonths > 0 ? addMonths(date, c.warrantyMonths + cardWarrantyMonths) : null,
+  };
+}
+
+export interface PriceCheck {
+  /** Last day the store usually refunds a lower price. */
+  until: ISODate;
+  store: string;
+}
+
+/** Stores that usually refund the difference if their own price drops soon after you buy (bigger purchases only). */
+export function priceCheck(card: Pick<Card, 'kind' | 'store' | 'date' | 'total' | 'returnBy' | 'category'>): PriceCheck | null {
+  if (card.kind !== 'purchase' || (card.total ?? 0) < PRICE_CHECK_MIN || card.category === 'grocery') return null;
+  const policy = findStore(card.store);
+  if (!policy?.priceAdjustDays) return null;
+  const until = policy.priceAdjustDays === 'return' ? card.returnBy : addDays(card.date, policy.priceAdjustDays);
+  return until ? { until, store: policy.name } : null;
+}
+
+/** A link to look the item up: the store's own search, or a web shopping search. */
+export function storeSearchUrl(store: string, query: string): string {
+  const q = query.trim() || store;
+  const template = findStore(store)?.search;
+  if (template) return template.replace('{q}', encodeURIComponent(q));
+  return `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(`${store} ${q}`.trim())}`;
+}
+
+/** Grocery stores (Kroger, Trader Joe's…): receipts from them count as groceries. */
+export function isGroceryStore(store: string): boolean {
+  return !!findStore(store)?.grocery;
 }

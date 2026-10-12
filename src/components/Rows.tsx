@@ -7,8 +7,15 @@ import { navigate } from '../lib/router';
 import { useSettings } from '../settings';
 import { Icon, type IconName } from './Icon';
 
-export const KIND_ICON: Record<Card['kind'], IconName> = { purchase: 'receipt', coupon: 'tag', giftcard: 'gift', credit: 'card' };
-const DEADLINE_LABEL: Record<Deadline['kind'], string> = { return: 'Return by', warranty: 'Warranty ends', expires: 'Expires' };
+export const KIND_ICON: Record<Card['kind'], IconName> = { purchase: 'receipt', coupon: 'tag', giftcard: 'gift', credit: 'card', renewal: 'repeat' };
+const DEADLINE_LABEL: Record<Deadline['kind'], string> = {
+  return: 'Return by',
+  warranty: 'Warranty ends',
+  expires: 'Expires',
+  price: 'Price-drop refund until',
+  refund: 'Check refund',
+  charge: 'Charges',
+};
 
 export function Thumb({ card, size = 48 }: { card: Card; size?: number }) {
   const url = useImageUrl(card.hasImage ? card.id : null);

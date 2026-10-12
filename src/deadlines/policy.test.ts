@@ -84,14 +84,14 @@ describe('remembered store windows', () => {
   });
 
   it('uses the window the user set', () => {
-    const s = suggestReturnBy({ ...base, store: 'Target', date: '2026-06-01' }, { target: 60 });
+    const s = suggestReturnBy({ ...base, store: 'Target', date: '2026-06-01' }, { windows: { target: 60 } });
     expect(s.date).toBe('2026-07-31');
     expect(s.reason).toBe('You set Target to 60 days.');
-    const local = suggestReturnBy({ ...base, store: "Rosie's Boutique", date: '2026-06-01' }, { "rosie's boutique": 14 });
+    const local = suggestReturnBy({ ...base, store: "Rosie's Boutique", date: '2026-06-01' }, { windows: { "rosie's boutique": 14 } });
     expect(local.date).toBe('2026-06-15');
   });
 
   it('does not apply a normal window to electronics', () => {
-    expect(suggestReturnBy({ ...base, store: 'Target', date: '2026-06-01', category: 'tv' }, { target: 60 }).days).toBe(30);
+    expect(suggestReturnBy({ ...base, store: 'Target', date: '2026-06-01', category: 'tv' }, { windows: { target: 60 } }).days).toBe(30);
   });
 });

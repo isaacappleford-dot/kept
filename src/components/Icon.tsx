@@ -35,6 +35,10 @@ const PATHS = {
   type: 'M4 6V4h16v2M12 4v16M9 20h6',
   card: 'M3 6h18v12H3zM3 10h18M7 15h4',
   clipboard: 'M9 4h6v3H9zM9 5.5H6v15h12v-15h-3M9 12h6M9 16h4',
+  repeat: 'M17 2l3 3-3 3M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3M20 13v2a4 4 0 0 1-4 4H4',
+  store: 'M4 9l1.5-5h13L20 9M4 9h16v11H4zM4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0M10 20v-5h4v5',
+  qr: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2M14 18h2v2M18 18h2v2h-2',
+  trend: 'M3 7l6 6 4-4 8 8M15 17h6v-6',
   wrench: 'M15 4a5 5 0 0 0-5 6.3L4 16.3 7.7 20l6-6A5 5 0 0 0 20 9l-3 3-3-1-1-3z',
 } as const;
 

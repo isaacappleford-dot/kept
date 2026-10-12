@@ -36,9 +36,16 @@ export function dueReminders(list: Deadline[], fired: ReadonlySet<string>, today
 export function reminderText(d: Deadline, today: ISODate, currency = 'USD'): { title: string; body: string } {
   const money = d.amount ? formatMoney(d.amount, currency, { whole: true }) : '';
   const what = d.name.toLowerCase() === d.store.toLowerCase() || !d.name ? `your ${d.store || 'purchase'}` : `the ${d.name}`;
+  const left = d.daysLeft === 0 ? 'Last day' : `${d.daysLeft} day${d.daysLeft === 1 ? '' : 's'} left`;
   switch (d.kind) {
     case 'return': {
-      const left = d.daysLeft === 0 ? 'Last day' : `${d.daysLeft} day${d.daysLeft === 1 ? '' : 's'} left`;
+      if (d.card.returnStatus === 'returning') {
+        const how = d.card.returnMethod === 'mail' ? `drop off ${what}` : `take ${what} back${d.store ? ` to ${d.store}` : ''}`;
+        return {
+          title: `${left} to ${how}${money ? ` (${money})` : ''}`,
+          body: d.card.returnMethod === 'mail' ? 'Your return label is saved in Kept.' : `The return window ends ${relativeDay(d.date, today)}.`,
+        };
+      }
       return {
         title: `${left} to return ${what}${money ? ` (${money})` : ''}`,
         body: d.store ? `Return window at ${d.store} ends ${relativeDay(d.date, today)}.` : `Return window ends ${relativeDay(d.date, today)}.`,
@@ -47,6 +54,26 @@ export function reminderText(d: Deadline, today: ISODate, currency = 'USD'): { t
     case 'warranty': {
       const when = d.daysLeft === 0 ? 'today' : `in ${d.daysLeft} day${d.daysLeft === 1 ? '' : 's'}`;
       return { title: `Your ${d.name} warranty ends ${when}`, body: 'Anything acting up? Now’s the time to claim.' };
+    }
+    case 'price': {
+      const store = d.store || 'the store';
+      return {
+        title: d.daysLeft === 0 ? `Last day for a price-drop refund on ${what}` : `Did ${what} get cheaper at ${store}?`,
+        body: `${store} usually refunds the difference until ${relativeDay(d.date, today)}. Worth a quick look.`,
+      };
+    }
+    case 'refund':
+      return {
+        title: `Did your ${money ? `${money} ` : ''}refund for ${what} arrive?`,
+        body: 'Check your card or account, then tap to mark it.',
+      };
+    case 'charge': {
+      const trial = /\btrial\b/i.test(d.card.title);
+      const name = d.card.title || d.store || 'subscription';
+      return {
+        title: `Your ${name} ${trial ? 'ends' : 'renews'} ${relativeDay(d.date, today)}${money ? ` (${money})` : ''}`,
+        body: trial ? 'Cancel before then if you don’t want to be charged.' : 'Still want it? Cancel before then if not.',
+      };
     }
     case 'expires': {
       const label = KIND_LABEL[d.card.kind].toLowerCase();

@@ -18,7 +18,7 @@ import { toast } from '../lib/toast';
 import { useSettings } from '../settings';
 
 function Tile({ icon, label, value, sub, tone, children }: { icon: IconName; label: string; value: string; sub?: string; tone?: 'urgent' | 'warn' | 'muted' | 'done'; children?: ReactNode }) {
-  const color = { urgent: 'text-urgent', warn: 'text-warn', muted: 'text-white/45', done: 'text-accent' }[tone ?? 'muted'];
+  const color = { urgent: 'text-urgent', warn: 'text-warn', muted: 'text-white/45', done: 'text-good' }[tone ?? 'muted'];
   return (
     <div className="rounded-2xl bg-white/5 p-4">
       <div className="flex items-start gap-3">
@@ -258,7 +258,7 @@ function CardView({ card }: { card: Card }) {
         )}
 
         {claimed.length > 0 && (
-          <div className="rounded-2xl bg-accent/10 p-4 text-[14px] text-accent">
+          <div className="rounded-2xl bg-good/10 p-4 text-[14px] text-good">
             {claimed.map((s) => (
               <p key={s.id}>
                 Saved {money(s.amount)} · {s.label}

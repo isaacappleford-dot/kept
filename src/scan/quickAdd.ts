@@ -1,7 +1,7 @@
 import type { CategoryId } from '../config/policies';
-import type { CardKind } from '../data/types';
+import type { CardKind, Repeat } from '../data/types';
 import { findStore, guessCategory } from '../deadlines/policy';
-import { addDays, addMonths, type ISODate } from '../lib/dates';
+import { addDays, addMonths, fromParts, MONTHS, parts, type ISODate } from '../lib/dates';
 import { parseAmount } from '../lib/money';
 import { findDates, parseRelative } from './parseDate';
 
@@ -20,6 +20,8 @@ export interface QuickAdd {
   warrantyUntil: ISODate | null;
   expires: ISODate | null;
   giftFor: string;
+  /** Trials / subscriptions: how often it charges. */
+  repeat: Repeat;
 }
 
 const NUM: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, ten: 10, thirty: 30, sixty: 60, ninety: 90 };
@@ -37,8 +39,60 @@ function dateAfter(text: string, words: RegExp, today: ISODate, direction: 'futu
   const rest = text.slice(m.index + m[0].length, m.index + m[0].length + 40);
   const clause = rest.split(/[,;.]| and | but /)[0];
   const abs = findDates(clause, today, { future: direction === 'future' })[0];
-  const date = abs?.date ?? parseRelative(clause, today, direction);
+  const date = abs?.date ?? parseRelative(clause, today, direction) ?? (direction === 'future' ? monthAlone(clause, today) : null);
   return date ? { date, span: [m.index, m.index + m[0].length + clause.length] } : null;
+}
+
+/** "in March" / "March" → the next 1st of March (remind early rather than late). */
+function monthAlone(clause: string, today: ISODate): ISODate | null {
+  const m = /^\s*(?:in\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i.exec(clause);
+  if (!m) return null;
+  const month = MONTHS.indexOf(m[1].toLowerCase()) + 1;
+  const [y, mo] = parts(today);
+  return fromParts(month > mo ? y : y + 1, month, 1);
+}
+
+const RENEWAL = /\b(?:free\s+)?trial\b|\bsubscription\b|\bauto[- ]?renew|\brenew(?:s|al|ing)?\b|\bmembership\b|\bbill(?:s|ed)? me\b|\bcharges? me\b/i;
+
+/** "Netflix trial ends Friday $15.49", "Costco membership renews in March, $65", "Spotify $11.99 monthly, renews the 3rd". */
+function parseRenewal(input: string, today: ISODate): QuickAdd {
+  let text = ` ${input.trim().replace(/\s+/g, ' ')} `;
+  const when = dateAfter(text, /\b(?:ends?|ending|renews?|renewal|renewing|charges?|charged|bills?|billed|due|expires?|until)\b(?:\s+(?:on|in|by))?/i, today, 'future');
+  if (when) text = text.slice(0, when.span[0]) + ' ' + text.slice(when.span[1]);
+  let total: number | null = null;
+  const money = /\$\s?(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{1,2})?)\s?(?:dollars|bucks|usd)\b/i.exec(text);
+  if (money) {
+    total = parseAmount(money[1] ?? money[2]);
+    text = text.replace(money[0], ' ');
+  }
+  const trial = /\btrial\b/i.test(text);
+  const repeat: Repeat = /\b(monthly|a month|per month|every month|\/\s?mo)\b/i.test(text)
+    ? 'monthly'
+    : /\b(yearly|annual(?:ly)?|a year|per year|every year|\/\s?yr)\b/i.test(text) || (/\bmembership\b/i.test(text) && !trial)
+      ? 'yearly'
+      : 'none';
+  const name = text
+    .replace(/\b(monthly|a month|per month|every month|yearly|annual(?:ly)?|a year|per year|every year)\b/gi, ' ')
+    .replace(/\b(my|the|a|an|for|of|is|it|will|on|at|and|then|me|remind|before|i'?m|charged?)\b/gi, ' ')
+    .replace(/[,.;:!/]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const service = name.replace(/\b(free|trial|subscription|membership|auto[- ]?renews?|renews?|renewal)\b/gi, ' ').replace(/\s+/g, ' ').trim();
+  return {
+    kind: 'renewal',
+    title: cap(name).slice(0, 60),
+    store: service ? service.replace(/\b([a-z])/g, (c) => c.toUpperCase()).slice(0, 40) : '',
+    date: today,
+    total,
+    category: 'other',
+    online: false,
+    deliveryDate: null,
+    returnBy: null,
+    warrantyUntil: null,
+    expires: when?.date ?? null,
+    giftFor: '',
+    repeat,
+  };
 }
 
 /**
@@ -49,6 +103,8 @@ function dateAfter(text: string, words: RegExp, today: ISODate, direction: 'futu
  *   "Ordered boots on Amazon for $89, arrives Friday"
  */
 export function parseQuickAdd(input: string, today: ISODate): QuickAdd {
+  // Trials and subscriptions read differently ("ends", "renews", how often it charges).
+  if (RENEWAL.test(input) && !/store credit|gift ?card|coupon|warranty|\breturn/i.test(input)) return parseRenewal(input, today);
   let text = ` ${input.trim().replace(/\s+/g, ' ')} `;
   const cut = (re: RegExp) => {
     text = text.replace(re, ' ');
@@ -163,5 +219,6 @@ export function parseQuickAdd(input: string, today: ISODate): QuickAdd {
     warrantyUntil,
     expires: expiry?.date ?? null,
     giftFor,
+    repeat: 'none',
   };
 }

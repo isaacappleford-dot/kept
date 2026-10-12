@@ -1,18 +1,26 @@
 import { emptyDraft, type CardDraft } from '../data/types';
-import { findStore, returnClockStart, suggestReturnBy, suggestWarranty, type StoreWindows } from '../deadlines/policy';
+import { findStore, isGroceryStore, returnClockStart, suggestReturnBy, suggestWarranty, type SuggestPrefs } from '../deadlines/policy';
 import { addDays, type ISODate } from '../lib/dates';
 import type { ParsedReceipt } from './parseReceipt';
 import type { QuickAdd } from './quickAdd';
 
-export type FixedField = 'returnBy' | 'warrantyUntil';
+export type FixedField = 'returnBy' | 'warrantyUntil' | 'extendedWarrantyUntil';
 
 /** Fills in suggested return / warranty dates, leaving fields the user set alone. */
-export function withSuggestions(d: CardDraft, fixed: readonly FixedField[] = [], windows: StoreWindows = {}): CardDraft {
+export function withSuggestions(d: CardDraft, fixed: readonly FixedField[] = [], prefs: SuggestPrefs = {}): CardDraft {
   if (d.kind !== 'purchase') return d;
   const out = { ...d };
-  if (!fixed.includes('returnBy')) out.returnBy = suggestReturnBy(d, windows).date;
-  if (!fixed.includes('warrantyUntil')) out.warrantyUntil = suggestWarranty(d.category, d.online && d.deliveryDate ? d.deliveryDate : d.date).date;
+  if (!fixed.includes('returnBy')) out.returnBy = suggestReturnBy(d, prefs).date;
+  const warranty = suggestWarranty(d.category, returnClockStart(d), prefs.cardWarrantyMonths);
+  if (!fixed.includes('warrantyUntil')) out.warrantyUntil = warranty.date;
+  // A credit card that extends warranties: fill in the longer date (if the user hasn't typed one).
+  if (!fixed.includes('extendedWarrantyUntil') && warranty.extended) out.extendedWarrantyUntil = warranty.extended;
   return out;
+}
+
+/** Receipts from grocery stores count as groceries unless the items clearly say otherwise. */
+function groceryCategory(store: string, category: CardDraft['category']): CardDraft['category'] {
+  return isGroceryStore(store) && (category === 'other' || category === 'kitchen' || category === 'home') ? 'grocery' : category;
 }
 
 export interface ReceiptDraft {
@@ -22,12 +30,12 @@ export interface ReceiptDraft {
   returnNote: string | null;
 }
 
-export function draftFromReceipt(p: ParsedReceipt, text: string, today: ISODate, windows: StoreWindows = {}): ReceiptDraft {
+export function draftFromReceipt(p: ParsedReceipt, text: string, today: ISODate, prefs: SuggestPrefs = {}): ReceiptDraft {
   const d = emptyDraft(today, p.kind);
   d.store = p.store;
   d.date = p.date ?? today;
   d.items = p.items;
-  d.category = p.category;
+  d.category = groceryCategory(p.store, p.category);
   d.online = p.online;
   d.deliveryDate = p.online ? p.deliveryDate : null;
   d.ocrText = text.slice(0, 4000);
@@ -46,27 +54,32 @@ export function draftFromReceipt(p: ParsedReceipt, text: string, today: ISODate,
   // is usually its general policy, which can be wrong for electronics).
   if (p.printedReturnBy) {
     d.returnBy = p.printedReturnBy;
-    return { draft: withSuggestions(d, ['returnBy'], windows), fixed: ['returnBy'], returnNote: 'From your receipt.' };
+    return { draft: withSuggestions(d, ['returnBy'], prefs), fixed: ['returnBy'], returnNote: 'From your receipt.' };
   }
   if (p.printedReturnDays && !findStore(p.store)) {
     d.returnBy = addDays(returnClockStart(d), p.printedReturnDays);
-    return { draft: withSuggestions(d, ['returnBy'], windows), fixed: ['returnBy'], returnNote: `Your receipt says ${p.printedReturnDays} days.` };
+    return { draft: withSuggestions(d, ['returnBy'], prefs), fixed: ['returnBy'], returnNote: `Your receipt says ${p.printedReturnDays} days.` };
   }
-  return { draft: withSuggestions(d, [], windows), fixed: [], returnNote: null };
+  return { draft: withSuggestions(d, [], prefs), fixed: [], returnNote: null };
 }
 
-export function draftFromQuickAdd(q: QuickAdd, sentence: string, today: ISODate, windows: StoreWindows = {}): { draft: CardDraft; fixed: FixedField[] } {
+export function draftFromQuickAdd(q: QuickAdd, sentence: string, today: ISODate, prefs: SuggestPrefs = {}): { draft: CardDraft; fixed: FixedField[] } {
   const d = emptyDraft(today, q.kind);
   d.title = q.title;
   d.store = q.store;
   d.date = q.date;
   d.total = q.total;
-  d.category = q.category;
+  d.category = groceryCategory(q.store, q.category);
   d.online = q.online;
   d.deliveryDate = q.deliveryDate;
   d.giftFor = q.giftFor;
   d.notes = '';
   d.ocrText = sentence;
+  if (q.kind === 'renewal') {
+    d.expires = q.expires;
+    d.repeat = q.repeat;
+    return { draft: d, fixed: [] };
+  }
   if (q.kind !== 'purchase') {
     d.balance = q.total;
     d.expires = q.expires;
@@ -81,5 +94,5 @@ export function draftFromQuickAdd(q: QuickAdd, sentence: string, today: ISODate,
     d.warrantyUntil = q.warrantyUntil;
     fixed.push('warrantyUntil');
   }
-  return { draft: withSuggestions(d, fixed, windows), fixed };
+  return { draft: withSuggestions(d, fixed, prefs), fixed };
 }
