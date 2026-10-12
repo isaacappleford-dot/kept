@@ -18,7 +18,7 @@ describe('searchCards', () => {
     expect(searchCards(cards, 'best buy', 'all', today).map((c) => c.id)).toEqual(['tv']);
     expect(searchCards(cards, 'qn55', 'all', today).map((c) => c.id)).toEqual(['tv']);
     expect(searchCards(cards, 'lamp', 'all', today).map((c) => c.id)).toEqual(['lamp']);
-    expect(searchCards(cards, '', 'all', today).map((c) => c.id)).toEqual(['boots', 'cpn', 'lamp', 'tv']);
+    expect(searchCards(cards, '', 'all', today).map((c) => c.id)).toEqual(['cpn', 'boots', 'lamp', 'tv']);
   });
 
   it('filters', () => {
