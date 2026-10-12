@@ -1,6 +1,6 @@
 import { SHOW_PAST_DAYS } from '../config/policies';
 import type { Card } from '../data/types';
-import { cardName, isWallet } from '../data/types';
+import { cardName, isWallet, nextCharge } from '../data/types';
 import { priceCheck } from './policy';
 import { daysBetween, type ISODate } from '../lib/dates';
 
@@ -45,7 +45,8 @@ export function deadlines(cards: Card[], today: ISODate): Deadline[] {
       kind,
       date,
       daysLeft,
-      urgency: urgencyOf(daysLeft),
+      // An overdue refund check is still to do, not "just missed".
+      urgency: kind === 'refund' && daysLeft < 0 ? 'week' : urgencyOf(daysLeft),
       store: card.store,
       name: cardName(card),
       amount,
@@ -58,7 +59,7 @@ export function deadlines(cards: Card[], today: ISODate): Deadline[] {
       continue;
     }
     if (c.kind === 'renewal') {
-      if (!c.used) push(c, 'charge', c.expires, c.total, true);
+      if (!c.used) push(c, 'charge', nextCharge(c, today), c.total, true);
       continue;
     }
     if (c.returnStatus === 'returned') continue;

@@ -157,7 +157,7 @@ export default function CheckinScreen() {
                   <button type="button" className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-white/5" onClick={() => navigate({ name: 'card', id: d.cardId })}>
                     <Icon name={d.kind === 'price' ? 'trend' : d.kind === 'refund' ? 'box' : 'repeat'} size={22} className="shrink-0 text-white/60" />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[16px] font-medium">{d.kind === 'charge' ? d.card.title || d.store : d.name}</span>
+                      <span className="block truncate text-[16px] font-medium">{d.name}</span>
                       <span className="block truncate text-[13px] text-white/55">
                         {d.kind === 'price'
                           ? `Check for a lower price at ${d.store || 'the store'} (until ${formatShort(d.date, today)})`

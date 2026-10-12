@@ -1,7 +1,7 @@
 import type { CategoryId } from '../config/policies';
 import type { CardKind, Repeat } from '../data/types';
 import { findStore, guessCategory } from '../deadlines/policy';
-import { addDays, addMonths, fromParts, MONTHS, parts, type ISODate } from '../lib/dates';
+import { addDays, addMonths, daysInMonth, fromParts, MONTHS, parts, type ISODate } from '../lib/dates';
 import { parseAmount } from '../lib/money';
 import { findDates, parseRelative } from './parseDate';
 
@@ -32,27 +32,52 @@ function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/** Finds a date phrase after one of `words` ("expires Friday", "arrives Oct 20"). */
+/** Finds a date phrase after any of `words` ("expires Friday", "arrives Oct 20"); the first one that holds a date wins. */
 function dateAfter(text: string, words: RegExp, today: ISODate, direction: 'future' | 'past'): { date: ISODate; span: [number, number] } | null {
-  const m = words.exec(text);
-  if (!m) return null;
-  const rest = text.slice(m.index + m[0].length, m.index + m[0].length + 40);
-  const clause = rest.split(/[,;.]| and | but /)[0];
-  const abs = findDates(clause, today, { future: direction === 'future' })[0];
-  const date = abs?.date ?? parseRelative(clause, today, direction) ?? (direction === 'future' ? monthAlone(clause, today) : null);
-  return date ? { date, span: [m.index, m.index + m[0].length + clause.length] } : null;
+  for (const m of text.matchAll(new RegExp(words.source, words.flags.includes('g') ? words.flags : `${words.flags}g`))) {
+    const start = m.index! + m[0].length;
+    const clause = text.slice(start, start + 40).split(/[,;.]| and | but /)[0];
+    const abs = findDates(clause, today, { future: direction === 'future' })[0];
+    const date = abs?.date ?? parseRelative(clause, today, direction) ?? (direction === 'future' ? vagueDate(clause, today) : null);
+    if (date) return { date, span: [m.index!, start + clause.length] };
+  }
+  return null;
 }
 
-/** "in March" / "March" → the next 1st of March (remind early rather than late). */
-function monthAlone(clause: string, today: ISODate): ISODate | null {
+/**
+ * "in March" → the next 1st of March (remind early rather than late); this
+ * month → today. "the 3rd" / "on the 15th" → the next time that day comes round.
+ */
+function vagueDate(clause: string, today: ISODate): ISODate | null {
+  const [y, mo, d] = parts(today);
   const m = /^\s*(?:in\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i.exec(clause);
-  if (!m) return null;
-  const month = MONTHS.indexOf(m[1].toLowerCase()) + 1;
-  const [y, mo] = parts(today);
-  return fromParts(month > mo ? y : y + 1, month, 1);
+  if (m) {
+    const month = MONTHS.indexOf(m[1].toLowerCase()) + 1;
+    if (month === mo) return today;
+    return fromParts(month > mo ? y : y + 1, month, 1);
+  }
+  const day = /^\s*(?:on\s+)?(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)\b/i.exec(clause);
+  if (day) {
+    const n = Number(day[1]);
+    if (n < 1 || n > 31) return null;
+    if (n >= d) return fromParts(y, mo, n) ?? fromParts(y, mo, daysInMonth(y, mo));
+    const ny = mo === 12 ? y + 1 : y;
+    const nm = mo === 12 ? 1 : mo + 1;
+    return fromParts(ny, nm, Math.min(n, daysInMonth(ny, nm)));
+  }
+  return null;
 }
 
-const RENEWAL = /\b(?:free\s+)?trial\b|\bsubscription\b|\bauto[- ]?renew|\brenew(?:s|al|ing)?\b|\bmembership\b|\bbill(?:s|ed)? me\b|\bcharges? me\b/i;
+/** Words that make a sentence about a trial or subscription... */
+const RENEWAL = /\btrial\b(?!\s*size)|\bsubscription\b|\bauto[- ]?renew|\brenew(?:s|al|ing)?\b|\bmembership\b(?!\s*card)|\bbill(?:s|ed)? me\b|\bcharges? me\b/i;
+/** ...when it also says when or how often it charges... */
+const CHARGES = /\b(?:ends?|ending|renews?|renewal|charges?|charged|bills?|billed|due|monthly|yearly|annual(?:ly)?|per month|per year|a month|a year|every month|every year|subscription|auto[- ]?renews?)\b/i;
+/** ...and isn't about buying something ("Bought trial-size shampoo", "with my membership"). */
+const BOUGHT = /\b(?:got|bought|buy|picked up|ordered|purchased|grabbed)\b|\bwith my (?:membership|card)\b/i;
+
+export function isRenewalSentence(input: string): boolean {
+  return RENEWAL.test(input) && CHARGES.test(input) && !BOUGHT.test(input) && !/store credit|gift ?card|coupon|warranty|\breturn/i.test(input);
+}
 
 /** "Netflix trial ends Friday $15.49", "Costco membership renews in March, $65", "Spotify $11.99 monthly, renews the 3rd". */
 function parseRenewal(input: string, today: ISODate): QuickAdd {
@@ -74,7 +99,8 @@ function parseRenewal(input: string, today: ISODate): QuickAdd {
       : 'none';
   const name = text
     .replace(/\b(monthly|a month|per month|every month|yearly|annual(?:ly)?|a year|per year|every year)\b/gi, ' ')
-    .replace(/\b(my|the|a|an|for|of|is|it|will|on|at|and|then|me|remind|before|i'?m|charged?)\b/gi, ' ')
+    .replace(/\b(my|the|a|an|for|of|is|it|will|on|at|and|then|me|remind|before|i'?m|charged?|charges|bills?|billed|renews?|due|ends?)\b/gi, ' ')
+    .replace(/\b\d{1,2}(?:st|nd|rd|th)\b/gi, ' ')
     .replace(/[,.;:!/]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -105,7 +131,7 @@ function parseRenewal(input: string, today: ISODate): QuickAdd {
  */
 export function parseQuickAdd(input: string, today: ISODate): QuickAdd {
   // Trials and subscriptions read differently ("ends", "renews", how often it charges).
-  if (RENEWAL.test(input) && !/store credit|gift ?card|coupon|warranty|\breturn/i.test(input)) return parseRenewal(input, today);
+  if (isRenewalSentence(input)) return parseRenewal(input, today);
   let text = ` ${input.trim().replace(/\s+/g, ' ')} `;
   const cut = (re: RegExp) => {
     text = text.replace(re, ' ');

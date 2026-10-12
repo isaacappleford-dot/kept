@@ -63,7 +63,8 @@ export async function checkReminders() {
     const list = deadlines(await listCards(), today);
 
     const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
-    const urgent = list.filter((d) => d.urgency === 'week' && remindable(d, s.minReminderAmount)).length;
+    // One per card, so a Best Buy item's return and price check count once.
+    const urgent = new Set(list.filter((d) => d.urgency === 'week' && remindable(d, s.minReminderAmount)).map((d) => d.cardId)).size;
     if (s.badge && nav.setAppBadge) await (urgent ? nav.setAppBadge(urgent) : nav.clearAppBadge?.())?.catch(() => {});
     else if (!s.badge) await nav.clearAppBadge?.().catch(() => {});
 

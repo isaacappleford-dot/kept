@@ -13,8 +13,8 @@ export function withSuggestions(d: CardDraft, fixed: readonly FixedField[] = [],
   if (!fixed.includes('returnBy')) out.returnBy = suggestReturnBy(d, prefs).date;
   const warranty = suggestWarranty(d.category, returnClockStart(d), prefs.cardWarrantyMonths);
   if (!fixed.includes('warrantyUntil')) out.warrantyUntil = warranty.date;
-  // A credit card that extends warranties: fill in the longer date (if the user hasn't typed one).
-  if (!fixed.includes('extendedWarrantyUntil') && warranty.extended) out.extendedWarrantyUntil = warranty.extended;
+  // A credit card that extends warranties: fill in the longer date (or clear a stale one) unless the user set it.
+  if (!fixed.includes('extendedWarrantyUntil') && prefs.cardWarrantyMonths) out.extendedWarrantyUntil = warranty.extended;
   return out;
 }
 

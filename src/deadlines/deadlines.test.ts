@@ -110,3 +110,32 @@ describe('started returns, price checks and charges', () => {
     expect(deadlines([{ ...trial, used: true }], today)).toEqual([]);
   });
 });
+
+describe('review regressions', () => {
+  it('rolls a yearly or monthly subscription forward when it was left to renew', () => {
+    const costco = card({ kind: 'renewal', store: 'Costco', title: 'Membership', total: 6500, expires: '2026-03-01', repeat: 'yearly' });
+    const [d] = deadlines([costco], today);
+    expect(d.date).toBe('2027-03-01');
+    const spotify = card({ kind: 'renewal', store: 'Spotify', title: 'Premium', total: 1199, expires: '2026-07-03', repeat: 'monthly' });
+    expect(deadlines([spotify], today)[0].date).toBe('2026-11-03');
+    const trial = card({ kind: 'renewal', store: 'Hulu', title: 'Free trial', expires: '2026-09-01', repeat: 'none' });
+    expect(deadlines([trial], today)).toEqual([]);
+  });
+
+  it('names a trial by its service', () => {
+    const t = card({ kind: 'renewal', store: 'Netflix', title: 'Free trial', total: 1549, expires: '2026-10-12' });
+    const [d] = deadlines([t], today);
+    expect(d.name).toBe('Netflix free trial');
+    expect(reminderText(d, today).title).toBe('Your Netflix free trial ends tomorrow ($15.49)');
+  });
+
+  it('keeps an overdue refund check due, and reminds once', async () => {
+    const { dueReminders } = await import('./reminders');
+    const sent = card({ title: 'Boots', total: 12000, returnStatus: 'returning', returnMethod: 'mail', droppedOffOn: '2026-09-20', refundCheckOn: '2026-09-30' });
+    const [d] = deadlines([sent], today);
+    expect(d.urgency).toBe('week');
+    const due = dueReminders([d], new Set(), today);
+    expect(due).toHaveLength(1);
+    expect(dueReminders([d], new Set([due[0].key]), today)).toHaveLength(0);
+  });
+});

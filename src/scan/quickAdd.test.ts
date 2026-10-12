@@ -106,3 +106,24 @@ describe('trials and subscriptions', () => {
     expect(parseQuickAdd('Got a vacuum at Target, 90-day return', today).kind).toBe('purchase');
   });
 });
+
+describe('trial detection (review regressions)', () => {
+  it('keeps ordinary purchases as purchases', () => {
+    expect(parseQuickAdd('Got AirPods at Best Buy with my membership $199', today).kind).toBe('purchase');
+    expect(parseQuickAdd('Bought trial size shampoo at CVS $5', today).kind).toBe('purchase');
+    expect(parseQuickAdd('Bought renewing serum at Sephora $45', today).kind).toBe('purchase');
+    expect(parseQuickAdd('Picked up a membership card holder at Target $12', today).kind).toBe('purchase');
+  });
+
+  it('reads "renews in <this month>" as now, and "the 3rd" as the next 3rd', () => {
+    expect(parseQuickAdd('Amazon Prime membership renews in October $139', today).expires).toBe(today);
+    const q = parseQuickAdd('Spotify subscription $11.99 monthly, renews the 3rd', today);
+    expect(q.kind).toBe('renewal');
+    expect(q.expires).toBe('2026-11-03');
+    expect(q.store).toBe('Spotify');
+  });
+
+  it('looks past a trigger word without a date', () => {
+    expect(parseQuickAdd('Spotify subscription charges me monthly, renews Nov 3', today).expires).toBe('2026-11-03');
+  });
+});

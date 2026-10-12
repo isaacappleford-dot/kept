@@ -12,3 +12,11 @@ describe('backup validation', () => {
     expect(validateBackup({ ...ok, images: [{ id: 'a', image: 'javascript:alert(1)', thumb: '' }] })).toMatch(/damaged/);
   });
 });
+
+describe('backup labels', () => {
+  const ok = { app: 'kept', version: 1, exportedAt: '', cards: [], savings: [], images: [{ id: 'a', image: 'data:image/jpeg;base64,AA', thumb: 'data:image/jpeg;base64,AA' }] };
+  it('accepts an optional label picture and rejects a bad one', () => {
+    expect(validateBackup({ ...ok, images: [{ ...ok.images[0], label: 'data:image/jpeg;base64,AA' }] })).toBeNull();
+    expect(validateBackup({ ...ok, images: [{ ...ok.images[0], label: 'javascript:alert(1)' }] })).toMatch(/damaged/);
+  });
+});

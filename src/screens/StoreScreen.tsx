@@ -6,7 +6,7 @@ import { Button, EmptyState, Header, Spinner } from '../components/ui';
 import { MEMBERSHIPS } from '../config/policies';
 import { getImage } from '../data/db';
 import { useCards } from '../data/hooks';
-import { cardName, isWallet, KIND_LABEL, type Card } from '../data/types';
+import { cardName, isWallet, KIND_LABEL, nextCharge, type Card } from '../data/types';
 import { deadlines } from '../deadlines/deadlines';
 import { findStore, sameStore } from '../deadlines/policy';
 import { countdown, formatShort, todayISO } from '../lib/dates';
@@ -47,6 +47,8 @@ export default function StoreScreen({ store }: { store: string }) {
   const returns = list.filter((d) => d.kind === 'return' && d.daysLeft >= 0);
   const prices = list.filter((d) => d.kind === 'price' && d.daysLeft >= 0);
   const past = here.filter((c) => c.kind === 'purchase').sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
+  const renewals = here.filter((c) => c.kind === 'renewal' && !c.used);
+  const empty = wallet.length + returns.length + prices.length + past.length + renewals.length === 0;
   const policy = policyLine(store, s.memberships);
 
   const show = async (card: Card) => setShowing({ card, image: card.hasImage ? ((await getImage(card.id))?.image ?? null) : null });
@@ -123,7 +125,19 @@ export default function StoreScreen({ store }: { store: string }) {
           </section>
         )}
 
-        {cards && here.length === 0 && (
+        {renewals.length > 0 && (
+          <section className="mb-6">
+            <h2 className="mb-1 px-1 text-[13px] font-semibold uppercase tracking-wide text-white/45">Trials & subscriptions</h2>
+            <ul className="divide-y divide-white/10 overflow-hidden rounded-2xl bg-white/5">
+              {renewals.map((c) => {
+                const next = nextCharge(c, today);
+                return <CardRow key={c.id} card={c} right={next ? formatShort(next, today) : undefined} />;
+              })}
+            </ul>
+          </section>
+        )}
+
+        {cards && empty && (
           <EmptyState icon="store" title={`Nothing from ${name} yet`}>
             <p className="text-[15px] text-white/60">Receipts, coupons and credit from this store will show up here.</p>
           </EmptyState>

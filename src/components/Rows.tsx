@@ -49,7 +49,7 @@ export function DeadlineRow({ d }: { d: Deadline }) {
           </span>
         </span>
         <span className={`shrink-0 text-right text-[13px] font-semibold tabular ${color}`}>
-          {d.urgency === 'later' ? relativeDay(d.date) : countdown(d.daysLeft)}
+          {d.kind === 'refund' && d.daysLeft <= 0 ? 'Check now' : d.urgency === 'later' ? relativeDay(d.date) : countdown(d.daysLeft)}
         </span>
       </button>
     </li>

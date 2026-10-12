@@ -59,7 +59,7 @@ export function buildICS(list: Deadline[], today: ISODate, now = new Date(), cur
       expires: `Expires: ${title.replace(/^Your /, '').replace(/ expires .*$/, '')}`,
       price: `Price-drop refund ends: ${d.name}`,
       refund: `Check refund: ${d.name}`,
-      charge: `${d.card.title || d.store || 'Subscription'} ${/\btrial\b/i.test(d.card.title) ? 'ends' : 'renews'}`,
+      charge: `${d.name || 'Subscription'} ${/\btrial\b/i.test(d.card.title) ? 'ends' : 'renews'}`,
     }[d.kind];
     lines.push(
       'BEGIN:VEVENT',

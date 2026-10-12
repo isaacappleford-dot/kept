@@ -71,6 +71,8 @@ export interface Card {
   used: boolean;
   /** Trials / subscriptions: how often it charges. */
   repeat: Repeat;
+  /** Trials / subscriptions: what the user did (shown on the card). */
+  renewalOutcome: 'cancelled' | 'kept' | null;
 
   // Notes
   serial: string;
@@ -131,6 +133,7 @@ export function emptyDraft(today: ISODate, kind: CardKind = 'purchase'): CardDra
     expires: null,
     used: false,
     repeat: 'none',
+    renewalOutcome: null,
     serial: '',
     giftFor: '',
     location: '',
@@ -142,10 +145,38 @@ export function emptyDraft(today: ISODate, kind: CardKind = 'purchase'): CardDra
 
 /** A short display name: "Boots", else the first item, else the store. */
 export function cardName(c: Pick<Card, 'title' | 'items' | 'store' | 'kind'>): string {
+  if (c.kind === 'renewal') return renewalName(c as Pick<Card, 'title' | 'store'>);
   if (c.title.trim()) return c.title.trim();
   if (c.kind === 'purchase' && c.items[0]?.name) return c.items.length > 1 ? `${c.items[0].name} +${c.items.length - 1}` : c.items[0].name;
-  if (c.kind === 'renewal') return c.store || KIND_LABEL.renewal;
   return c.kind === 'purchase' ? c.store || 'Purchase' : KIND_LABEL[c.kind];
+}
+
+/** "Netflix free trial": the service plus what it is, unless the title already names the service. */
+export function renewalName(c: Pick<Card, 'title' | 'store'>): string {
+  const title = c.title.trim();
+  const store = c.store.trim();
+  if (!store) return title || KIND_LABEL.renewal;
+  if (!title || title.toLowerCase().includes(store.toLowerCase())) return title || store;
+  return `${store} ${title.charAt(0).toLowerCase()}${title.slice(1)}`;
+}
+
+/**
+ * The next time a subscription charges: a monthly or yearly one that wasn't
+ * dealt with rolls forward on its own (people usually just let it renew).
+ */
+export function nextCharge(c: Pick<Card, 'expires' | 'repeat' | 'used'>, today: string): string | null {
+  if (!c.expires || c.used || c.repeat === 'none' || c.expires >= today) return c.expires;
+  const [y, m, d] = c.expires.split('-').map(Number);
+  const step = c.repeat === 'yearly' ? 12 : 1;
+  for (let k = 1; k <= 1200; k++) {
+    const total = y * 12 + (m - 1) + k * step;
+    const ny = Math.floor(total / 12);
+    const nm = (total % 12) + 1;
+    const last = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
+    const next = `${String(ny).padStart(4, '0')}-${String(nm).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`;
+    if (next >= today) return next;
+  }
+  return c.expires;
 }
 
 /** Cards saved by older versions miss newer fields: fill them with defaults. */

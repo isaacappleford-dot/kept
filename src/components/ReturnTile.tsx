@@ -37,6 +37,10 @@ interface Props {
   onStart: () => void;
   onShowLabel: () => void;
   onAddLabel: () => void;
+  /** Undo a finished return (also removes what it added to Savings). */
+  onUndoReturned: () => void;
+  /** Stop a started return (also forgets its label). */
+  onCancelReturn: () => void;
   /** A return label / QR picture (or code) is saved. */
   hasLabel: boolean;
   set: (patch: Partial<Card>, message: string) => Promise<void>;
@@ -46,11 +50,11 @@ interface Props {
  * The return, start to finish: open → "Return it" (in store / by mail) →
  * mailed: save the label, "Dropped it off" → "Did the refund arrive?" → returned.
  */
-export function ReturnTile({ card, ret, refund, today, onAsk, onStart, onShowLabel, onAddLabel, hasLabel, set }: Props) {
+export function ReturnTile({ card, ret, refund, today, onAsk, onStart, onShowLabel, onAddLabel, onUndoReturned, onCancelReturn, hasLabel, set }: Props) {
   if (card.returnStatus === 'returned') {
     return (
       <Tile icon="check" label="Return" value="Returned" tone="done">
-        <Button variant="ghost" className={ghost} onClick={() => void set({ returnStatus: 'open', returnMethod: null, droppedOffOn: null, refundCheckOn: null }, 'Marked as not returned')}>
+        <Button variant="ghost" className={ghost} onClick={onUndoReturned}>
           <Icon name="undo" size={16} /> Undo
         </Button>
       </Tile>
@@ -58,7 +62,7 @@ export function ReturnTile({ card, ret, refund, today, onAsk, onStart, onShowLab
   }
 
   const cancel = (
-    <Button variant="ghost" className={ghost} onClick={() => void set({ returnStatus: 'open', returnMethod: null, droppedOffOn: null, refundCheckOn: null }, 'Return cancelled')}>
+    <Button variant="ghost" className={ghost} onClick={onCancelReturn}>
       Not returning it
     </Button>
   );
@@ -109,9 +113,14 @@ export function ReturnTile({ card, ret, refund, today, onAsk, onStart, onShowLab
               Dropped it off
             </Button>
             {hasLabel ? (
-              <Button variant="secondary" className={small} onClick={onShowLabel}>
-                <Icon name="qr" size={16} /> Show label
-              </Button>
+              <>
+                <Button variant="secondary" className={small} onClick={onShowLabel}>
+                  <Icon name="qr" size={16} /> Show label
+                </Button>
+                <Button variant="ghost" className={ghost} onClick={onAddLabel}>
+                  Replace label
+                </Button>
+              </>
             ) : (
               <Button variant="secondary" className={small} onClick={onAddLabel}>
                 <Icon name="qr" size={16} /> Add label or QR

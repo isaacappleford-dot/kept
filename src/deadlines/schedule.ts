@@ -39,7 +39,7 @@ export function scheduleReminders(list: Deadline[], today: ISODate, now: number,
   const out: ScheduledReminder[] = [];
   const minAmount = opts.minAmount ?? 0;
   for (const d of list) {
-    if (d.daysLeft < 0 || !remindable(d, minAmount)) continue;
+    if ((d.daysLeft < 0 && d.kind !== 'refund') || !remindable(d, minAmount)) continue;
     const current = stageFor(d);
     for (const lead of REMINDER_LEADS[d.kind]) {
       if (lead > d.daysLeft && lead !== current) continue;

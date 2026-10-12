@@ -158,6 +158,12 @@ test('returns start to finish, price check, trial, store page', async ({ page })
   await expect(page.getByText('Drop it off by')).toBeVisible();
   await page.getByRole('button', { name: 'Dropped it off' }).click();
   await expect(page.getByText('Refund on its way')).toBeVisible();
+  // Refund arrives → Savings; Undo takes the saving back out (no double counting).
+  await page.getByRole('button', { name: 'Refund arrived' }).click();
+  await page.getByRole('button', { name: 'Mark as returned' }).click();
+  await expect(page.getByText('Saved $89.00')).toBeVisible();
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByText('Saved $89.00')).toHaveCount(0);
 
   // Start a return from an open purchase.
   await page.goto('/#/receipts');

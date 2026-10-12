@@ -96,3 +96,14 @@ describe('grocery stores and card perks', () => {
     expect(draft.returnBy).toBeNull();
   });
 });
+
+describe('extended warranty (review regressions)', () => {
+  it('clears a card-perk warranty when the category no longer has one, but keeps typed dates', () => {
+    const text = 'BEST BUY\n10/01/2026\nAPPLE MACBOOK AIR 13  999.00\nTOTAL 1,079.00';
+    const prefs = { cardWarrantyMonths: 12 };
+    const { draft } = draftFromReceipt(parseReceipt(text, today), text, today, prefs);
+    expect(withSuggestions({ ...draft, category: 'clothing' }, [], prefs).extendedWarrantyUntil).toBeNull();
+    const typed = { ...draft, extendedWarrantyUntil: '2030-01-01' };
+    expect(withSuggestions({ ...typed, title: 'Laptop' }, ['returnBy', 'warrantyUntil', 'extendedWarrantyUntil'], prefs).extendedWarrantyUntil).toBe('2030-01-01');
+  });
+});

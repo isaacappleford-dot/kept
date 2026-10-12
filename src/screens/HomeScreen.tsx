@@ -58,7 +58,8 @@ export default function HomeScreen() {
   const list = useMemo(() => (cards ? deadlines(cards, today) : []), [cards, today]);
   const groups = groupDeadlines(list);
   const week = list.filter((d) => d.urgency === 'week');
-  const atStake = week.filter((d) => d.kind !== 'warranty').reduce((sum, d) => sum + (d.amount ?? 0), 0);
+  // Price checks aren't the whole price at stake (and Best Buy's would double the return).
+  const atStake = week.filter((d) => d.kind !== 'warranty' && d.kind !== 'price').reduce((sum, d) => sum + (d.amount ?? 0), 0);
   const [perm, setPerm] = useState(notificationPermission());
   const [backupOpen, setBackupOpen] = useState(false);
 

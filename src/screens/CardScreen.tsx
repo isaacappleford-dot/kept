@@ -8,7 +8,7 @@ import { Button, Header, IconButton, Sheet, SheetItem, Spinner } from '../compon
 import { categoryById, PRICE_CHECK_MIN } from '../config/policies';
 import { addSaving, deleteCard, deleteSavingsFor, setLabelImage, updateCard } from '../data/db';
 import { useCard, useCardImages, useImageUrl, useSavings } from '../data/hooks';
-import { cardName, isWallet, KIND_LABEL, type Card } from '../data/types';
+import { cardName, isWallet, KIND_LABEL, nextCharge, type Card } from '../data/types';
 import { deadlines } from '../deadlines/deadlines';
 import { findStore, storeSearchUrl } from '../deadlines/policy';
 import { remindable } from '../deadlines/filters';
@@ -59,6 +59,7 @@ function CardView({ card }: { card: Card }) {
   const isRenewal = card.kind === 'renewal';
   const isWalletKind = isWallet(card.kind);
   const trial = /\btrial\b/i.test(card.title);
+  const chargeOn = nextCharge(card, today);
   const cancelled = claimed.some((s) => s.kind === 'cancel');
   // Big buys at stores that don't adjust prices: suggest return-and-rebuy while the window is open.
   const policy = findStore(card.store);
@@ -114,7 +115,19 @@ function CardView({ card }: { card: Card }) {
 
         {isPurchase && (
           <>
-            <ReturnTile card={card} ret={ret} refund={refund} today={today} onAsk={setAsk} onStart={() => setStartReturn(true)} onShowLabel={() => setShowLabel(true)} onAddLabel={() => labelInput.current?.click()} hasLabel={!!images?.label || !!card.returnCode} set={set} />
+            <ReturnTile card={card} ret={ret} refund={refund} today={today} onAsk={setAsk} onStart={() => setStartReturn(true)} onShowLabel={() => setShowLabel(true)}
+              onAddLabel={() => labelInput.current?.click()}
+              onUndoReturned={async () => {
+                await deleteSavingsFor(card.id, 'return');
+                await set({ returnStatus: 'open', returnMethod: null, droppedOffOn: null, refundCheckOn: null }, 'Marked as not returned');
+              }}
+              onCancelReturn={async () => {
+                if (images?.label) await setLabelImage(card.id, null);
+                await set({ returnStatus: 'open', returnMethod: null, droppedOffOn: null, refundCheckOn: null, returnCode: '' }, 'Return cancelled');
+              }}
+              hasLabel={!!images?.label || !!card.returnCode}
+              set={set}
+            />
 
             {priceDl && (
               <Tile
@@ -185,8 +198,8 @@ function CardView({ card }: { card: Card }) {
           <Tile
             icon="repeat"
             label={trial ? 'Trial ends' : 'Renews'}
-            value={card.expires ? formatLong(card.expires) : 'No date'}
-            sub={card.used ? (cancelled ? 'Cancelled' : 'Keeping it') : charge ? countdown(charge.daysLeft) : undefined}
+            value={chargeOn ? formatLong(chargeOn) : 'No date'}
+            sub={card.used ? (card.renewalOutcome === 'cancelled' || cancelled ? 'Cancelled' : 'Keeping it') : charge ? countdown(charge.daysLeft) : undefined}
             tone={card.used ? 'muted' : toneFor(charge)}
           >
             {!card.used && (
@@ -198,9 +211,9 @@ function CardView({ card }: { card: Card }) {
                   variant="secondary"
                   className="min-h-[36px] px-4 text-[14px]"
                   onClick={() =>
-                    card.repeat === 'yearly' && card.expires
-                      ? void set({ expires: addMonths(card.expires, 12) }, 'Keeping it. We’ll remind you before next year’s renewal.')
-                      : void set({ used: true }, 'Keeping it. No more reminders.')
+                    card.repeat === 'yearly' && chargeOn
+                      ? void set({ expires: addMonths(chargeOn, 12) }, 'Keeping it. We’ll remind you before next year’s renewal.')
+                      : void set({ used: true, renewalOutcome: 'kept' }, 'Keeping it. No more reminders.')
                   }
                 >
                   Keeping it
@@ -213,7 +226,7 @@ function CardView({ card }: { card: Card }) {
                 className="min-h-[36px] px-3 text-[13px]"
                 onClick={async () => {
                   await deleteSavingsFor(card.id, 'cancel');
-                  await set({ used: false }, 'Reminders are back on');
+                  await set({ used: false, renewalOutcome: null }, 'Reminders are back on');
                 }}
               >
                 <Icon name="undo" size={16} /> Undo
@@ -507,7 +520,7 @@ function CardView({ card }: { card: Card }) {
         onConfirm={async (amount) => {
           setAsk(null);
           if (amount) await addSaving({ cardId: card.id, kind: 'cancel', amount, date: today, label: `Cancelled ${cardName(card)}` });
-          await set({ used: true }, 'Cancelled. No more reminders.');
+          await set({ used: true, renewalOutcome: 'cancelled' }, 'Cancelled. No more reminders.');
         }}
       />
 

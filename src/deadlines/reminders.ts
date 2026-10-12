@@ -14,6 +14,8 @@ export interface Reminder {
 
 /** The reminder stage a deadline is in: the smallest lead that has been reached, or null. */
 export function stageFor(d: Deadline): number | null {
+  // Refund checks stay due until answered: an overdue one still gets its (single) reminder.
+  if (d.kind === 'refund') return d.daysLeft <= 0 ? 0 : null;
   if (d.daysLeft < 0) return null;
   const leads = [...REMINDER_LEADS[d.kind]].sort((a, b) => a - b);
   for (const lead of leads) if (d.daysLeft <= lead) return lead;
@@ -69,7 +71,7 @@ export function reminderText(d: Deadline, today: ISODate, currency = 'USD'): { t
       };
     case 'charge': {
       const trial = /\btrial\b/i.test(d.card.title);
-      const name = d.card.title || d.store || 'subscription';
+      const name = d.name || 'subscription';
       return {
         title: `Your ${name} ${trial ? 'ends' : 'renews'} ${relativeDay(d.date, today)}${money ? ` (${money})` : ''}`,
         body: trial ? 'Cancel before then if you don’t want to be charged.' : 'Still want it? Cancel before then if not.',

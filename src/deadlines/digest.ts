@@ -54,7 +54,7 @@ function line(d: Deadline, day: ISODate, currency: string): string {
   if (d.kind === 'return') return `${name} (${d.card.returnStatus === 'returning' ? 'send back' : 'return'} by ${when(d.date, day)})`;
   if (d.kind === 'price') return `${name} price check (until ${when(d.date, day)})`;
   if (d.kind === 'refund') return `${name} refund (check it arrived)`;
-  if (d.kind === 'charge') return `${clip(d.card.title || d.store, 40)} (${/\btrial\b/i.test(d.card.title) ? 'ends' : 'renews'} ${when(d.date, day)})`;
+  if (d.kind === 'charge') return `${name} (${/\btrial\b/i.test(d.card.title) ? 'ends' : 'renews'} ${when(d.date, day)})`;
   const money = d.amount ? `${formatMoney(d.amount, currency, { whole: true })} ` : '';
   const what = d.card.title && d.card.kind !== 'coupon' ? clip(cardName(d.card), 40) : KIND_LABEL[d.card.kind].toLowerCase();
   return `${money}${d.store ? `${d.store} ` : ''}${what} (expires ${when(d.date, day)})`;
