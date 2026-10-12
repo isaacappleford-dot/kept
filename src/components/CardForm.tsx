@@ -109,6 +109,9 @@ export function CardForm({ initial, unsure = [], fixed: initialFixed = [], image
   /** "Always use 60 days for Target": offered when the user typed a different window for a store. */
   const rememberable = useMemo(() => {
     if (!isPurchase || !editedReturn || !d.returnBy || !d.store.trim()) return null;
+    // Only learn a store's normal window: not during a holiday extension, not when the
+    // clock should start at an unknown delivery date, not when it matches the suggestion.
+    if (!ret || ret.holiday || ret.needsDelivery || d.returnBy === ret.date) return null;
     const key = storeKey(d.store, d.category);
     const days = daysBetween(returnClockStart(d), d.returnBy);
     if (!key || days < 1 || days > 730 || days === ret?.days) return null;
@@ -200,9 +203,9 @@ export function CardForm({ initial, unsure = [], fixed: initialFixed = [], image
         <>
           <Section title="Deadlines">
             <Toggle label="Bought online" hint="Return clocks usually start at delivery" checked={d.online} onChange={(v) => update({ online: v })} />
-            {d.online && (
-              <Field label="Delivered (or arriving)" unsure={ret?.needsDelivery} hint={ret?.needsDelivery ? 'Add the delivery date so the return window starts at the right time.' : undefined}>
-                <DateInput label="Delivery date" optional value={d.deliveryDate} onChange={(v) => update({ deliveryDate: v })} />
+            {(d.online || !!findStore(d.store)?.online) && (
+              <Field label="Delivered (or arriving)" unsure={ret?.needsDelivery || isUnsure('delivery')} hint={ret?.needsDelivery ? 'Add the delivery date so the return window starts at the right time.' : undefined}>
+                <DateInput label="Delivery date" optional value={d.deliveryDate} onChange={(v) => update({ deliveryDate: v }, 'delivery')} />
               </Field>
             )}
             <Field

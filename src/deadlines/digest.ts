@@ -2,6 +2,7 @@ import type { Card } from '../data/types';
 import { cardName, KIND_LABEL } from '../data/types';
 import { addDays, daysBetween, formatShort, weekday, weekdayName, type ISODate } from '../lib/dates';
 import { formatMoney } from '../lib/money';
+import { clip } from '../../server/src/protocol';
 import { deadlines, type Deadline } from './deadlines';
 import { remindable } from './filters';
 
@@ -44,9 +45,9 @@ function when(date: ISODate, day: ISODate): string {
 }
 
 function line(d: Deadline, day: ISODate, currency: string): string {
-  if (d.kind === 'return') return `${d.name} (return by ${when(d.date, day)})`;
+  if (d.kind === 'return') return `${clip(d.name, 40)} (return by ${when(d.date, day)})`;
   const money = d.amount ? `${formatMoney(d.amount, currency, { whole: true })} ` : '';
-  const what = d.card.title && d.card.kind !== 'coupon' ? cardName(d.card) : KIND_LABEL[d.card.kind].toLowerCase();
+  const what = d.card.title && d.card.kind !== 'coupon' ? clip(cardName(d.card), 40) : KIND_LABEL[d.card.kind].toLowerCase();
   return `${money}${d.store ? `${d.store} ` : ''}${what} (expires ${when(d.date, day)})`;
 }
 

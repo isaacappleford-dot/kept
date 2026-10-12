@@ -107,6 +107,10 @@ test('paste an order email → review with delivery-based return date', async ({
       'Get $10 off your next order with promo code SAVE10',
     ].join('\n'),
   );
+  // Typing must keep focus in the box (it used to lose it after every key).
+  await page.getByLabel('Order email text').press('End');
+  await page.getByLabel('Order email text').pressSequentially('\nThanks!');
+  await expect(page.getByLabel('Order email text')).toHaveValue(/Thanks!$/);
   await page.getByRole('button', { name: 'Read it' }).click();
   await expect(page).toHaveURL(/#\/review/);
   await expect(page.getByRole('radio', { name: 'Purchase' })).toHaveAttribute('aria-checked', 'true');

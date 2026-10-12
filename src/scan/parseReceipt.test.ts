@@ -207,7 +207,9 @@ describe('order emails and printed return dates', () => {
     expect(r.store).toBe('Amazon');
     expect(r.date).toBe('2026-10-06');
     expect(r.online).toBe(true);
-    expect(r.deliveryDate).toBe('2026-10-15');
+    // Ordered Tue Oct 6, "Arriving Thursday" → Oct 8, even though it's pasted on Oct 11.
+    expect(r.deliveryDate).toBe('2026-10-08');
+    expect(r.unsure).toContain('delivery');
     expect(r.total).toBe(41921);
     expect(r.items).toEqual([
       { name: 'Dyson V8 Cordless Vacuum Cleaner', price: 34999 },
@@ -239,5 +241,65 @@ describe('order emails and printed return dates', () => {
     expect(r.printedReturnBy).toBeNull();
     expect(r.printedReturnDays).toBe(90);
     expect(r.deliveryDate).toBeNull();
+  });
+});
+
+describe('review regressions', () => {
+  it('counts "Arriving Thursday" from the order date, whatever day it is pasted', () => {
+    const email = 'amazon.com\nOrder # 112-1\nOrdered on October 12, 2026\nArriving Thursday\nBoots\n$89.00\nOrder Total: $89.00';
+    expect(parseReceipt(email, '2026-10-15').deliveryDate).toBe('2026-10-15');
+    expect(parseReceipt(email, '2026-10-19').deliveryDate).toBe('2026-10-15');
+  });
+
+  it('skips a delivery keyword without a date and keeps delivery dates out of the purchase date', () => {
+    const email = 'Target\nYour order is on its way!\nDelivered by: UPS\nArrives by Thu, Oct 15\nOrder #9012345\nLamp\n$40.00';
+    const r = parseReceipt(email, '2026-10-12');
+    expect(r.deliveryDate).toBe('2026-10-15');
+    expect(r.date).not.toBe('2025-10-15');
+  });
+
+  it('ignores refund-processing and shipping times', () => {
+    const a = "Rosie's Boutique\n09/30/2026\nScarf 45.00\nTOTAL 45.00\nPlease allow 5-7 days for refunds to post.\nReturns accepted within 30 days";
+    expect(parseReceipt(a, today).printedReturnDays).toBe(30);
+    const b = "Rosie's Boutique\n09/30/2026\nScarf 45.00\nRefunds are processed within 5 days of receiving your return.";
+    expect(parseReceipt(b, today).printedReturnDays).toBeNull();
+    const c = "Rosie's Boutique\n09/30/2026\nProcessing time: 1-3 days\nReturn policy: 30 days";
+    expect(parseReceipt(c, today).printedReturnDays).toBe(30);
+  });
+
+  it('never takes the purchase date or an unrelated line as the printed return date', () => {
+    const a = 'CORNER HARDWARE\nRefunds by original form of payment only.\n10/05/2026 2:22 PM\nHAMMER 19.99\nTOTAL 21.59';
+    const ra = parseReceipt(a, today);
+    expect(ra.date).toBe('2026-10-05');
+    expect(ra.printedReturnBy).toBeNull();
+    const b = 'CORNER HARDWARE\n10/01/2026\nHAMMER 19.99\nReturns by mail: see website\nSurvey ends 10/19/2026';
+    expect(parseReceipt(b, today).printedReturnBy).toBeNull();
+    const c = 'CORNER HARDWARE\n10/01/2026\nHAMMER 19.99\nRETURN/EXCHANGE BY:\n10/31/2026';
+    expect(parseReceipt(c, today).printedReturnBy).toBe('2026-10-31');
+  });
+
+  it('takes the earliest row of a policy table and ignores protection-plan expiry', () => {
+    const hd = 'THE HOME DEPOT\n10/02/26 09:15 AM\nGENERATOR 899.00\nDRILL 129.00\nTOTAL 1100.00\nPOLICY ID  DAYS  POLICY EXPIRES ON\nA 1 90 12/31/2026\nB 1 30 11/01/2026';
+    expect(parseReceipt(hd, today).printedReturnBy).toBe('2026-11-01');
+    const bb = 'BEST BUY\n10/02/2026\nLAPTOP 999.00\nTOTAL 999.00\nProtection plan policy expires 10/02/2027';
+    expect(parseReceipt(bb, today).printedReturnBy).toBeNull();
+  });
+
+  it('keeps coupons with "Limit one per order / No cash value" as coupons', () => {
+    const c = '$5 OFF\nany purchase of $25 or more\nLimit one per order\nNo cash value\nExpires 10/31/2026\nCode: 5OFF25';
+    const r = parseReceipt(c, today);
+    expect(r.kind).toBe('coupon');
+    expect(r.expires).toBe('2026-10-31');
+  });
+
+  it('does not mistake stores starting with Hi/Hey/Dear for greetings', () => {
+    expect(parseReceipt('HIGHLAND HARDWARE\n456 Oak Ave\n10/01/2026\nNAILS 4.99\nTOTAL 4.99', today).store).toBe('Highland Hardware');
+    expect(parseReceipt('DEARBORN MUSIC\n22000 Michigan Ave\n10/01/2026\nGUITAR STRINGS 9.99', today).store).toBe('Dearborn Music');
+    expect(parseReceipt('Hi Sam,\nHilltop Books\n10/01/2026\nNovel 12.99', today).store).toBe('Hilltop Books');
+  });
+
+  it('ignores promo "order on or before" lines', () => {
+    const r = parseReceipt('CORNER HARDWARE\n10/01/2026\nHAMMER 19.99\nTOTAL 21.59\nOrder on or before Dec 15 for holiday delivery!', today);
+    expect(r.date).toBe('2026-10-01');
   });
 });

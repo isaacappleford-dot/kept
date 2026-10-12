@@ -67,7 +67,7 @@ export default function HomeScreen() {
     const it = checkinItems(cards, today, s.minReminderAmount);
     return it.returns.length + it.expiring.length;
   }, [cards, today, s.minReminderAmount]);
-  const showCheckin = toDecide > 0 && Date.now() - s.lastCheckinAt > 6 * DAY;
+  const showCheckin = s.checkin && toDecide > 0 && Date.now() - s.lastCheckinAt > 6 * DAY;
 
   // Every now and then (a month after the last backup or "Not now"), once people have
   // used Kept for a week and saved a few receipts, ask if they'd like a backup.

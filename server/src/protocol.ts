@@ -17,6 +17,8 @@ export interface SyncRequest {
 }
 
 export const MAX_REMINDERS = 300;
+export const MAX_TITLE = 200;
+export const MAX_BODY = 500;
 const str = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && v.length <= max;
 
 /** Returns an error message, or null when the request is well-formed. */
@@ -28,7 +30,7 @@ export function validateSync(x: unknown, opts: { allowLocalEndpoints?: boolean }
   if (!s.keys || !str(s.keys.p256dh, 200) || !str(s.keys.auth, 100)) return 'Bad subscription keys';
   if (!Array.isArray(reminders) || reminders.length > MAX_REMINDERS) return 'Bad reminders';
   for (const r of reminders) {
-    if (!r || !str(r.key, 200) || !str(r.title, 200) || typeof r.body !== 'string' || r.body.length > 500 || !str(r.url, 500)) return 'Bad reminder';
+    if (!r || !str(r.key, 200) || !str(r.title, MAX_TITLE) || typeof r.body !== 'string' || r.body.length > MAX_BODY || !str(r.url, 500)) return 'Bad reminder';
     if (typeof r.fireAt !== 'number' || !Number.isFinite(r.fireAt)) return 'Bad reminder time';
   }
   return null;
@@ -44,7 +46,8 @@ export interface Outgoing {
   tag: string;
 }
 
-const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s);
+/** Shortens text to `max` characters with an ellipsis. */
+export const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s);
 
 /**
  * Turns everything due for one phone at the same moment into ONE notification,

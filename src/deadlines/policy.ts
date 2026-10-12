@@ -45,6 +45,8 @@ export interface ReturnSuggestion {
   reason: string;
   /** The clock should start at delivery but we don't know it yet. */
   needsDelivery: boolean;
+  /** A holiday extension covers this purchase (so a hand-set date isn't the store's normal window). */
+  holiday?: boolean;
 }
 
 export interface ReturnInput {
@@ -97,7 +99,7 @@ export function suggestReturnBy(input: ReturnInput, windows: StoreWindows = {}):
     const date = maxDate(addDays(start, mine), holiday)!;
     const name = policy?.name ?? input.store.trim();
     const what = key!.endsWith('|electronics') ? ' for electronics' : '';
-    return { date, days: mine, reason: `You set ${name} to ${mine} days${what}.`, needsDelivery };
+    return { date, days: mine, reason: `You set ${name} to ${mine} days${what}.`, needsDelivery, holiday: !!holiday };
   }
 
   if (!policy) {
@@ -120,7 +122,7 @@ export function suggestReturnBy(input: ReturnInput, windows: StoreWindows = {}):
     holiday && date === holiday
       ? `${policy.name} extends holiday returns to ${holiday.slice(5).replace('-', '/')}.`
       : `${policy.name} usually allows ${days} days${what}, ${from}.`;
-  return { date, days, reason, needsDelivery };
+  return { date, days, reason, needsDelivery, holiday: !!holiday };
 }
 
 export interface WarrantySuggestion {

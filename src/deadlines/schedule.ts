@@ -2,7 +2,7 @@ import { REMINDER_LEADS } from '../config/policies';
 import type { Card } from '../data/types';
 import { addDays, parts, type ISODate } from '../lib/dates';
 import type { ScheduledReminder } from '../../server/src/protocol';
-import { DIGEST_PREFIX, MAX_REMINDERS } from '../../server/src/protocol';
+import { clip, DIGEST_PREFIX, MAX_BODY, MAX_REMINDERS, MAX_TITLE } from '../../server/src/protocol';
 import type { Deadline } from './deadlines';
 import { upcomingSundays, weeklyDigest } from './digest';
 import { remindable } from './filters';
@@ -64,5 +64,9 @@ export function scheduleReminders(list: Deadline[], today: ISODate, now: number,
       if (digest) out.push({ key: `${DIGEST_PREFIX}${sunday}`, fireAt, ...digest, url: opts.checkin.url });
     }
   }
-  return out.sort((a, b) => a.fireAt - b.fireAt).slice(0, MAX_REMINDERS);
+  // Never let one long card name make the server turn the whole list away.
+  return out
+    .sort((a, b) => a.fireAt - b.fireAt)
+    .slice(0, MAX_REMINDERS)
+    .map((r) => ({ ...r, title: clip(r.title, MAX_TITLE), body: clip(r.body, MAX_BODY) }));
 }

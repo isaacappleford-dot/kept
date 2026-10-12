@@ -94,3 +94,20 @@ describe('schedule with check-in and cut-off', () => {
     expect(keys.some((k) => k.startsWith(boots.id + ':'))).toBe(true);
   });
 });
+
+describe('long names', () => {
+  it('keeps every reminder within what the server accepts', async () => {
+    const { validateSync } = await import('../../server/src/protocol');
+    const long = 'Ultra Premium Stainless Steel Professional Grade Cordless Rechargeable Handheld Vacuum Cleaner With HEPA Filter And Extra Long Battery Life Edition';
+    const many = [1, 2, 3].map((i) => card({ store: 'Amazon', title: `${long} ${i}`, total: 4999 + i, returnBy: `2026-10-1${i + 2}` }));
+    const cards = [...many, card({ kind: 'giftcard', store: 'Target', balance: 5000, total: 5000 })];
+    const reminders = scheduleReminders(deadlines(cards, today), today, localTime(today, 7), {
+      currency: 'USD',
+      cardUrl: (id) => `https://k/#/card/${id}`,
+      checkin: { cards, url: 'https://k/#/checkin' },
+    });
+    expect(reminders.some((r) => r.key.startsWith('digest:'))).toBe(true);
+    const sub = { endpoint: 'https://web.push.apple.com/x', keys: { p256dh: 'k', auth: 'a' } };
+    expect(validateSync({ subscription: sub, reminders })).toBeNull();
+  });
+});

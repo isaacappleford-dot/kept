@@ -26,7 +26,7 @@ const CUTOFFS = [0, 1000, 2000, 5000];
 /** "target|electronics" → "Target electronics". */
 function windowLabel(key: string): string {
   const [name, kind] = key.split('|');
-  const known = findStore(name)?.name ?? name.replace(/\b\w/g, (c) => c.toUpperCase());
+  const known = findStore(name)?.name ?? name.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
   return kind ? `${known} ${kind}` : known;
 }
 

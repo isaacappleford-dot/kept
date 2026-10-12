@@ -18,8 +18,7 @@ export interface Env {
   ALLOW_LOCAL_ENDPOINTS?: string;
 }
 
-const MINUTE = 60_000;
-const DAY = 24 * 60 * MINUTE;
+const DAY = 24 * 60 * 60_000;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -48,6 +47,9 @@ export class PushStore extends DurableObject<Env> {
       CREATE INDEX IF NOT EXISTS reminders_fire ON reminders (fire_at);
       CREATE TABLE IF NOT EXISTS sent (sub_id TEXT NOT NULL, key TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (sub_id, key));
     `);
+    // v2: failed sends back off instead of retrying every second.
+    const cols = this.sql.exec<{ name: string }>(`PRAGMA table_info(reminders)`).toArray().map((c) => c.name);
+    if (!cols.includes('tries')) this.sql.exec(`ALTER TABLE reminders ADD COLUMN tries INTEGER NOT NULL DEFAULT 0`);
   }
 
   async vapidKeys(): Promise<VapidKeys> {
@@ -95,13 +97,10 @@ export class PushStore extends DurableObject<Env> {
     this.sql.exec(`DELETE FROM subs WHERE id = ?`, id);
   }
 
-  private async scheduleNext(retrySoon = false) {
+  private async scheduleNext() {
     const next = this.sql.exec<{ t: number | null }>(`SELECT MIN(fire_at) AS t FROM reminders`).toArray()[0]?.t ?? null;
-    const now = Date.now();
-    let at = next === null ? null : Math.max(next, now + 1000);
-    if (retrySoon) at = Math.min(at ?? Infinity, now + 15 * MINUTE);
-    if (at === null) await this.ctx.storage.deleteAlarm();
-    else await this.ctx.storage.setAlarm(at);
+    if (next === null) await this.ctx.storage.deleteAlarm();
+    else await this.ctx.storage.setAlarm(Math.max(next, Date.now() + 1000));
   }
 
   async alarm() {
@@ -111,20 +110,34 @@ export class PushStore extends DurableObject<Env> {
     this.sql.exec(`DELETE FROM sent WHERE at < ?`, now - 90 * DAY);
     this.sql.exec(`DELETE FROM subs WHERE updated < ? AND id NOT IN (SELECT DISTINCT sub_id FROM reminders)`, now - 180 * DAY);
 
-    const due = this.sql
-      .exec<{ sub_id: string; key: string; title: string; body: string; url: string; endpoint: string; p256dh: string; auth: string }>(
-        `SELECT r.sub_id, r.key, r.title, r.body, r.url, s.endpoint, s.p256dh, s.auth
-         FROM reminders r JOIN subs s ON s.id = r.sub_id WHERE r.fire_at <= ? ORDER BY r.fire_at LIMIT 200`,
-        now,
-      )
-      .toArray();
-
+    // Page by phone, never by row, so everything due for one phone is always in the same run.
+    const PHONES_PER_RUN = 60;
+    const phones = this.sql
+      .exec<{ sub_id: string }>(`SELECT DISTINCT sub_id FROM reminders WHERE fire_at <= ? ORDER BY sub_id LIMIT ?`, now, PHONES_PER_RUN)
+      .toArray()
+      .map((r) => r.sub_id);
     // Everything due for one phone right now goes out as ONE notification.
-    const byPhone = new Map<string, typeof due>();
-    for (const r of due) byPhone.set(r.sub_id, [...(byPhone.get(r.sub_id) ?? []), r]);
-    const groups = [...byPhone.values()];
+    const groups = phones
+      .map((id) =>
+        this.sql
+          .exec<{ sub_id: string; key: string; title: string; body: string; url: string; endpoint: string; p256dh: string; auth: string }>(
+            `SELECT r.sub_id, r.key, r.title, r.body, r.url, s.endpoint, s.p256dh, s.auth
+             FROM reminders r JOIN subs s ON s.id = r.sub_id WHERE r.sub_id = ? AND r.fire_at <= ? ORDER BY r.fire_at`,
+            id,
+            now,
+          )
+          .toArray(),
+      )
+      .filter((rows) => rows.length > 0);
 
-    let retry = false;
+    // A failed send waits 15, 30, 45... minutes before trying again, and gives up after 6 tries.
+    const failed = (rows: typeof groups[number]) => {
+      for (const r of rows) {
+        this.sql.exec(`UPDATE reminders SET tries = tries + 1, fire_at = ? + 900000 * (tries + 1) WHERE sub_id = ? AND key = ?`, now, r.sub_id, r.key);
+      }
+      this.sql.exec(`DELETE FROM reminders WHERE sub_id = ? AND tries >= 6`, rows[0].sub_id);
+    };
+
     for (let i = 0; i < groups.length; i += 20) {
       await Promise.all(
         groups.slice(i, i + 20).map(async (rows) => {
@@ -138,14 +151,15 @@ export class PushStore extends DurableObject<Env> {
                 this.sql.exec(`DELETE FROM reminders WHERE sub_id = ? AND key = ?`, r.sub_id, r.key);
                 this.sql.exec(`INSERT OR REPLACE INTO sent (sub_id, key, at) VALUES (?, ?, ?)`, r.sub_id, r.key, now);
               }
-            } else retry = true;
+            } else failed(rows);
           } catch {
-            retry = true;
+            failed(rows);
           }
         }),
       );
     }
-    await this.scheduleNext(retry || due.length === 200);
+    // More phones still due (or retries later): the next alarm picks them up.
+    await this.scheduleNext();
   }
 }
 
