@@ -33,9 +33,9 @@ test('onboarding → scan sample receipt (on-device OCR) → review → card →
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page).toHaveURL(/#\/card\//);
   await expect(page.getByText('Return by')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'I returned it' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Return it', exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Back' }).click();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(page.getByRole('list', { name: 'Later' })).toBeVisible();
 
   expect(w.errors).toEqual([]);

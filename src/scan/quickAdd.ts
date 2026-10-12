@@ -64,7 +64,7 @@ function parseRenewal(input: string, today: ISODate): QuickAdd {
     total = parseAmount(money[1] ?? money[2]);
     text = text.replace(money[0], ' ');
   }
-  const when = dateAfter(text, /\b(?:ends?|ending|renews?|renewal|renewing|charges?|charged|bills?|billed|due|expires?|until)\b(?:\s+(?:on|in|by))?/i, today, 'future');
+  const when = dateAfter(text, /\b(?:ends?|ending|renews?|renewal|renewing|charges?|charged|bills?|billed|due|expires?|until)\b(?:\s+(?:on|by))?/i, today, 'future');
   if (when) text = text.slice(0, when.span[0]) + ' ' + text.slice(when.span[1]);
   const trial = /\btrial\b/i.test(text);
   const repeat: Repeat = /\b(monthly|a month|per month|every month|\/\s?mo)\b/i.test(text)

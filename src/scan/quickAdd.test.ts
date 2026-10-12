@@ -94,6 +94,13 @@ describe('trials and subscriptions', () => {
     expect(q.repeat).toBe('monthly');
   });
 
+  it('reads "ends in N days"', () => {
+    const q = parseQuickAdd('Hulu trial ends in 5 days $9.99', today);
+    expect(q.expires).toBe('2026-10-16');
+    expect(q.total).toBe(999);
+    expect(q.store).toBe('Hulu');
+  });
+
   it('still reads store credit and returns as before', () => {
     expect(parseQuickAdd('$25 store credit at Target, expires Dec 31', today).kind).toBe('credit');
     expect(parseQuickAdd('Got a vacuum at Target, 90-day return', today).kind).toBe('purchase');
