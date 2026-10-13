@@ -1,4 +1,6 @@
 import { APP } from './config/app';
+import type { MembershipId } from './config/policies';
+import type { SuggestPrefs } from './deadlines/policy';
 import { load, save } from './lib/storage';
 import { createStore, useStore } from './lib/store';
 
@@ -23,6 +25,10 @@ export interface Settings {
   minReminderAmount: number;
   /** Return windows the user set for a store, in days (see deadlines/policy.ts storeKey). */
   storeWindows: Record<string, number>;
+  /** Store cards / memberships that lengthen return windows. */
+  memberships: MembershipId[];
+  /** Months the user's credit card adds to manufacturer warranties (0 = none). */
+  cardWarrantyMonths: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -37,9 +43,16 @@ export const DEFAULT_SETTINGS: Settings = {
   lastCheckinAt: 0,
   minReminderAmount: 2000,
   storeWindows: {},
+  memberships: [],
+  cardWarrantyMonths: 0,
 };
 
 export const settingsStore = createStore<Settings>(load('settings', DEFAULT_SETTINGS), (s) => save('settings', s));
 
 export const useSettings = () => useStore(settingsStore);
 export const setSettings = settingsStore.set;
+
+/** The parts of Settings that change suggested dates. */
+export function suggestPrefs(s: Settings = settingsStore.get()): SuggestPrefs {
+  return { windows: s.storeWindows, memberships: s.memberships, cardWarrantyMonths: s.cardWarrantyMonths };
+}

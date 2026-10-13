@@ -13,6 +13,6 @@ describe('summarise', () => {
     );
     expect(s.total).toBe(38000);
     expect(s.thisYear).toBe(13000);
-    expect(s.byKind).toEqual({ return: 12000, warranty: 25000, coupon: 1000 });
+    expect(s.byKind).toEqual({ return: 12000, warranty: 25000, coupon: 1000, price: 0, cancel: 0 });
   });
 });

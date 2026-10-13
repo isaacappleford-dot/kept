@@ -22,7 +22,7 @@ export function TabBar({ current }: { current: Route['name'] }) {
                   type="button"
                   aria-label="Scan a receipt"
                   onClick={() => navigate({ name: 'scan' })}
-                  className="flex h-16 w-16 flex-col items-center justify-center rounded-full bg-accent text-ink shadow-[0_6px_24px_rgba(123,227,166,0.35)] active:bg-accent-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  className="flex h-16 w-16 flex-col items-center justify-center rounded-full bg-accent text-ink shadow-[0_6px_24px_rgba(255,90,95,0.35)] active:bg-accent-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                   <Icon name="scan" size={28} strokeWidth={2} />
                 </button>

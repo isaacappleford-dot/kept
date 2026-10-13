@@ -1,8 +1,8 @@
 import { APP } from '../config/app';
 import { categoryById } from '../config/policies';
 import { getImage } from '../data/db';
-import { cardName, KIND_LABEL, type Card } from '../data/types';
-import { formatLong } from '../lib/dates';
+import { cardName, KIND_LABEL, nextCharge, type Card } from '../data/types';
+import { formatLong, todayISO } from '../lib/dates';
 import { formatMoney } from '../lib/money';
 import { decodeImage, canvasToBlob, release } from '../scan/image';
 import { fitWithin } from '../scan/pixels';
@@ -81,6 +81,11 @@ export async function receiptPdf(card: Card, currency: string): Promise<File> {
     if (card.returnBy) row('Return by', formatLong(card.returnBy));
     if (card.warrantyUntil) row('Warranty until', formatLong(card.warrantyUntil));
     if (card.extendedWarrantyUntil) row('Extended warranty', formatLong(card.extendedWarrantyUntil));
+  } else if (card.kind === 'renewal') {
+    row('Amount', formatMoney(card.total, currency));
+    const next = nextCharge(card, todayISO());
+    if (next) row('Charges on', formatLong(next));
+    row('Repeats', { none: 'Once', monthly: 'Monthly', yearly: 'Yearly' }[card.repeat]);
   } else {
     row('Balance', formatMoney(card.balance, currency));
     row('Code', card.code);

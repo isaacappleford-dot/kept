@@ -4,6 +4,6 @@
     <path d="M150 96h212v320l-35.3-24-35.4 24-35.3-24-35.3 24-35.4-24L150 416z" fill="#f4f1ea"/>
     <path d="M196 170h120M196 222h120M196 274h70" stroke="#0b0c0c" stroke-opacity="0.28" stroke-width="22" stroke-linecap="round"/>
   </g>
-  <circle cx="352" cy="352" r="78" fill="#7be3a6" stroke="#0b0c0c" stroke-width="16"/>
-  <path d="M318 352l24 24 46-50" stroke="#0b0c0c" stroke-width="22" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="352" cy="352" r="78" fill="#ff5a5f" stroke="#0b0c0c" stroke-width="16"/>
+  <path d="M318 352l24 24 46-50" stroke="#ffffff" stroke-width="22" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

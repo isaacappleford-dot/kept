@@ -12,7 +12,8 @@ export interface BackupFile {
   exportedAt: string;
   cards: Card[];
   savings: Saving[];
-  images: Array<{ id: string; image: string; thumb: string }>;
+  /** label: the return label / QR picture, when one was saved (added later; optional). */
+  images: Array<{ id: string; image: string; thumb: string; label?: string }>;
 }
 
 function blobToDataUrl(b: Blob): Promise<string> {
@@ -36,7 +37,14 @@ export async function exportBackup(): Promise<Blob> {
     exportedAt: new Date().toISOString(),
     cards,
     savings,
-    images: await Promise.all(images.map(async (i) => ({ id: i.id, image: await blobToDataUrl(i.image), thumb: await blobToDataUrl(i.thumb) }))),
+    images: await Promise.all(
+      images.map(async (i) => ({
+        id: i.id,
+        image: await blobToDataUrl(i.image),
+        thumb: await blobToDataUrl(i.thumb),
+        ...(i.label ? { label: await blobToDataUrl(i.label) } : {}),
+      })),
+    ),
   };
   return new Blob([JSON.stringify(file)], { type: 'application/json' });
 }
@@ -50,6 +58,7 @@ export function validateBackup(x: unknown): string | null {
   if (!Array.isArray(b.cards) || !Array.isArray(b.savings) || !Array.isArray(b.images)) return 'This backup is damaged.';
   if (b.cards.some((c) => !c || typeof c.id !== 'string' || typeof c.kind !== 'string' || typeof c.date !== 'string')) return 'This backup is damaged.';
   if (b.images.some((i) => !i || typeof i.image !== 'string' || !i.image.startsWith('data:image/'))) return 'This backup is damaged.';
+  if (b.images.some((i) => i.label !== undefined && (typeof i.label !== 'string' || !i.label.startsWith('data:image/')))) return 'This backup is damaged.';
   return null;
 }
 
@@ -64,7 +73,14 @@ export async function importBackup(file: Blob): Promise<number> {
   const err = validateBackup(parsed);
   if (err) throw new Error(err);
   const b = parsed as BackupFile;
-  const images: CardImage[] = await Promise.all(b.images.map(async (i) => ({ id: i.id, image: await dataUrlToBlob(i.image), thumb: await dataUrlToBlob(i.thumb) })));
+  const images: CardImage[] = await Promise.all(
+    b.images.map(async (i) => ({
+      id: i.id,
+      image: await dataUrlToBlob(i.image),
+      thumb: await dataUrlToBlob(i.thumb),
+      ...(i.label ? { label: await dataUrlToBlob(i.label) } : {}),
+    })),
+  );
   await db().transaction('rw', db().cards, db().images, db().savings, async () => {
     await db().cards.bulkPut(b.cards);
     await db().savings.bulkPut(b.savings);

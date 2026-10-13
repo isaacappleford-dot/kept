@@ -13,8 +13,10 @@ import { useSettings } from '../settings';
 
 const KINDS: Array<{ id: SavingKind; label: string; icon: IconName }> = [
   { id: 'return', label: 'Returns', icon: 'undo' },
+  { id: 'price', label: 'Price drops', icon: 'trend' },
   { id: 'warranty', label: 'Warranty claims', icon: 'shield' },
   { id: 'coupon', label: 'Coupons used', icon: 'tag' },
+  { id: 'cancel', label: 'Cancelled trials', icon: 'repeat' },
 ];
 
 export default function SavingsScreen() {
@@ -35,7 +37,7 @@ export default function SavingsScreen() {
         )}
         {savings && (
           <>
-            <div className="mb-4 rounded-3xl bg-gradient-to-br from-accent/30 to-white/5 p-6 text-center">
+            <div className="mb-4 rounded-3xl bg-gradient-to-br from-good/25 to-white/5 p-6 text-center">
               <p className="text-[13px] font-semibold uppercase tracking-wide text-white/60">Money kept</p>
               <p className="text-[48px] font-bold leading-tight tabular" aria-live="polite">
                 {money(sum.total)}
@@ -45,7 +47,7 @@ export default function SavingsScreen() {
             <div className="mb-6 grid grid-cols-3 gap-2">
               {KINDS.map((k) => (
                 <div key={k.id} className="rounded-2xl bg-white/5 p-3">
-                  <Icon name={k.icon} size={20} className="text-accent" />
+                  <Icon name={k.icon} size={20} className="text-good" />
                   <p className="mt-1 text-[17px] font-semibold tabular">{formatMoney(sum.byKind[k.id], currency, { whole: true })}</p>
                   <p className="text-[12px] text-white/55">{k.label}</p>
                 </div>
@@ -64,7 +66,7 @@ export default function SavingsScreen() {
                     <span className="block truncate text-[15px]">{s.label}</span>
                     <span className="block text-[13px] text-white/50">{formatShort(s.date, today)}</span>
                   </button>
-                  <span className="font-semibold tabular text-accent">+{money(s.amount)}</span>
+                  <span className="font-semibold tabular text-good">+{money(s.amount)}</span>
                   <button
                     type="button"
                     aria-label={`Remove “${s.label}”`}
@@ -94,6 +96,12 @@ export default function SavingsScreen() {
               </li>
               <li>
                 <strong className="text-white">Coupons:</strong> tap “I used it” in your Wallet.
+              </li>
+              <li>
+                <strong className="text-white">Price drops:</strong> tap “Got money back” on a card.
+              </li>
+              <li>
+                <strong className="text-white">Trials:</strong> tap “I cancelled it” before it charges.
               </li>
             </ul>
           </EmptyState>

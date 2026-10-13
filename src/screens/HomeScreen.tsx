@@ -58,7 +58,8 @@ export default function HomeScreen() {
   const list = useMemo(() => (cards ? deadlines(cards, today) : []), [cards, today]);
   const groups = groupDeadlines(list);
   const week = list.filter((d) => d.urgency === 'week');
-  const atStake = week.filter((d) => d.kind !== 'warranty').reduce((sum, d) => sum + (d.amount ?? 0), 0);
+  // Price checks aren't the whole price at stake (and Best Buy's would double the return).
+  const atStake = week.filter((d) => d.kind !== 'warranty' && d.kind !== 'price').reduce((sum, d) => sum + (d.amount ?? 0), 0);
   const [perm, setPerm] = useState(notificationPermission());
   const [backupOpen, setBackupOpen] = useState(false);
 
@@ -170,7 +171,7 @@ export default function HomeScreen() {
             <svg viewBox="0 0 120 120" className="w-28" aria-hidden="true">
               <path d="M30 14h60v92l-10-7-10 7-10-7-10 7-10-7-10 7z" fill="#f4f1ea" opacity="0.9" />
               <path d="M42 36h36M42 50h36M42 64h22" stroke="#0b0c0c" strokeOpacity="0.3" strokeWidth="5" strokeLinecap="round" />
-              <circle cx="88" cy="86" r="20" fill="#7be3a6" />
+              <circle cx="88" cy="86" r="20" fill="#ff5a5f" />
               <path d="M79 86l6 6 12-13" stroke="#0b0c0c" strokeWidth="5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <h2 className="text-[21px] font-semibold">{cards.length ? 'Nothing coming up' : 'Snap a receipt once'}</h2>

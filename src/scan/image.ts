@@ -74,3 +74,13 @@ export async function prepareImage(src: Source): Promise<PreparedImage> {
   if ('close' in src && typeof src.close === 'function') src.close();
   return { image, thumb, ocr };
 }
+
+/** A photo or screenshot shrunk to a JPEG of at most `max` px on the long side (return labels, coupons). */
+export async function shrinkImage(file: Blob, max = 1600): Promise<Blob> {
+  const src = await decodeImage(file);
+  const c = draw(src, max);
+  const out = await canvasToBlob(c, 'image/jpeg', 0.85);
+  release(c);
+  if ('close' in src && typeof src.close === 'function') src.close();
+  return out;
+}

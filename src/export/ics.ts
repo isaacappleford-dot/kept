@@ -1,6 +1,7 @@
 import { APP } from '../config/app';
 import type { Deadline } from '../deadlines/deadlines';
 import { reminderText } from '../deadlines/reminders';
+import { isTrial } from '../data/types';
 import { addDays, type ISODate } from '../lib/dates';
 
 /**
@@ -44,7 +45,7 @@ function stamp(now: Date): string {
 /** Alarm offsets before the all-day event's midnight start: "-PT15H" = 9 am the day before. */
 export function alarmsFor(kind: Deadline['kind'], daysLeft: number): string[] {
   const at9 = (daysBefore: number) => (daysBefore === 0 ? 'PT9H' : `-P${daysBefore - 1}DT15H`);
-  const days = kind === 'warranty' ? [30, 7] : [3, 1, 0];
+  const days = { warranty: [30, 7], price: [1], refund: [0], charge: [3, 1], return: [3, 1, 0], expires: [3, 1, 0] }[kind];
   return days.filter((d) => d <= Math.max(daysLeft, 0)).map(at9);
 }
 
@@ -53,7 +54,14 @@ export function buildICS(list: Deadline[], today: ISODate, now = new Date(), cur
   for (const d of list) {
     if (d.daysLeft < 0) continue;
     const { title, body } = reminderText(d, today, currency);
-    const summary = d.kind === 'return' ? `Return by: ${d.name}` : d.kind === 'warranty' ? `Warranty ends: ${d.name}` : `Expires: ${title.replace(/^Your /, '').replace(/ expires .*$/, '')}`;
+    const summary = {
+      return: `Return by: ${d.name}`,
+      warranty: `Warranty ends: ${d.name}`,
+      expires: `Expires: ${title.replace(/^Your /, '').replace(/ expires .*$/, '')}`,
+      price: `Price-drop refund ends: ${d.name}`,
+      refund: `Check refund: ${d.name}`,
+      charge: `${d.name || 'Subscription'} ${isTrial(d.card, d.date) ? 'ends' : 'renews'}`,
+    }[d.kind];
     lines.push(
       'BEGIN:VEVENT',
       `UID:${d.cardId}-${d.kind}@${APP.storagePrefix}.app`,

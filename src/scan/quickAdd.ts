@@ -1,7 +1,7 @@
 import type { CategoryId } from '../config/policies';
-import type { CardKind } from '../data/types';
+import type { CardKind, Repeat } from '../data/types';
 import { findStore, guessCategory } from '../deadlines/policy';
-import { addDays, addMonths, type ISODate } from '../lib/dates';
+import { addDays, addMonths, daysInMonth, fromParts, MONTHS, parts, type ISODate } from '../lib/dates';
 import { parseAmount } from '../lib/money';
 import { findDates, parseRelative } from './parseDate';
 
@@ -20,6 +20,8 @@ export interface QuickAdd {
   warrantyUntil: ISODate | null;
   expires: ISODate | null;
   giftFor: string;
+  /** Trials / subscriptions: how often it charges. */
+  repeat: Repeat;
 }
 
 const NUM: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, ten: 10, thirty: 30, sixty: 60, ninety: 90 };
@@ -30,15 +32,124 @@ function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/** Finds a date phrase after one of `words` ("expires Friday", "arrives Oct 20"). */
-function dateAfter(text: string, words: RegExp, today: ISODate, direction: 'future' | 'past'): { date: ISODate; span: [number, number] } | null {
-  const m = words.exec(text);
-  if (!m) return null;
-  const rest = text.slice(m.index + m[0].length, m.index + m[0].length + 40);
-  const clause = rest.split(/[,;.]| and | but /)[0];
-  const abs = findDates(clause, today, { future: direction === 'future' })[0];
-  const date = abs?.date ?? parseRelative(clause, today, direction);
-  return date ? { date, span: [m.index, m.index + m[0].length + clause.length] } : null;
+/** Finds a date phrase after any of `words` ("expires Friday", "arrives Oct 20"); the first one that holds a date wins. */
+function dateAfter(
+  text: string,
+  words: RegExp,
+  today: ISODate,
+  direction: 'future' | 'past',
+  vague: 'start' | 'end' = 'start',
+): { date: ISODate; span: [number, number] } | null {
+  for (const m of text.matchAll(new RegExp(words.source, words.flags.includes('g') ? words.flags : `${words.flags}g`))) {
+    const start = m.index! + m[0].length;
+    const clause = text.slice(start, start + 40).split(/[,;.]| and | but /)[0];
+    const abs = findDates(clause, today, { future: direction === 'future' })[0];
+    const date = abs?.date ?? parseRelative(clause, today, direction) ?? (direction === 'future' ? vagueDate(clause, today, vague) : null);
+    if (date) return { date, span: [m.index!, start + clause.length] };
+  }
+  return null;
+}
+
+/**
+ * "in March" → the next 1st of March (remind early rather than late); this
+ * month → today. "the 3rd" / "on the 15th" → the next time that day comes round.
+ */
+function vagueDate(clause: string, today: ISODate, vague: 'start' | 'end' = 'start'): ISODate | null {
+  const [y, mo, d] = parts(today);
+  const m = /^\s*(?:in\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i.exec(clause);
+  if (m) {
+    const month = MONTHS.indexOf(m[1].toLowerCase()) + 1;
+    const year = month >= mo ? y : y + 1;
+    // Expiry "good through October" lasts the whole month; a charge "in October" could be any day, so remind now.
+    if (vague === 'end') return fromParts(year, month, daysInMonth(year, month));
+    return month === mo ? today : fromParts(year, month, 1);
+  }
+  const day = /^\s*(?:on\s+)?(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)\b/i.exec(clause);
+  if (day) {
+    const n = Number(day[1]);
+    if (n < 1 || n > 31) return null;
+    // The next month (from this one) that actually has that day: "the 31st" is never moved earlier.
+    for (let k = 0; k < 13; k++) {
+      const total = y * 12 + (mo - 1) + k;
+      const ny = Math.floor(total / 12);
+      const nm = (total % 12) + 1;
+      if (n <= daysInMonth(ny, nm) && (k > 0 || n >= d)) return fromParts(ny, nm, n);
+    }
+  }
+  return null;
+}
+
+/** Words that make a sentence about a trial or subscription... */
+const RENEWAL = /\btrial\b(?![\s-]*size)|\bsubscription\b|\bauto[- ]?renew|\brenew(?:s|al|ing)?\b|\bmembership\b(?!\s*card)|\bbill(?:s|ed)? me\b|\bcharges? me\b/i;
+/** ...when it also says when or how often it charges... */
+const CHARGES =
+  /\b(?:ends?|ending|expires?|expiring|until|thru|through|renews?|renewal|renewing|auto[- ]?renew(?:s|ing)?|charges?|charged|bills?|billed|due|cancel (?:by|before)|monthly|yearly|annual(?:ly)?|per month|per year|a month|a year|every month|every year|subscription|\d+[- ]?days?)\b/i;
+/** A trial / subscription / membership named as such (not "renewing serum" or "membership card"). */
+const SERVICE_NOUN = /\btrial\b(?![\s-]*size)|\bsubscription\b|\bmembership\b(?!\s*card)/i;
+/** Buying something: only a purchase when no trial/subscription/membership is named. */
+const BOUGHT = /\b(?:got|bought|buy|picked up|ordered|purchased|grabbed)\b/i;
+
+export function isRenewalSentence(input: string): boolean {
+  if (!RENEWAL.test(input) || !CHARGES.test(input)) return false;
+  if (/store credit|gift ?card|coupon|warranty|\breturn/i.test(input) || /\bwith my (?:membership|card)\b/i.test(input)) return false;
+  return !BOUGHT.test(input) || SERVICE_NOUN.test(input);
+}
+
+/** "Netflix trial ends Friday $15.49", "Costco membership renews in March, $65", "Spotify $11.99 monthly, renews the 3rd". */
+function parseRenewal(input: string, today: ISODate): QuickAdd {
+  let text = ` ${input.trim().replace(/\s+/g, ' ')} `;
+  // Price first: "$15.49" must not be split at its dot by the date clause.
+  let total: number | null = null;
+  const money = /\$\s?(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{1,2})?)\s?(?:dollars|bucks|usd)\b/i.exec(text);
+  if (money) {
+    total = parseAmount(money[1] ?? money[2]);
+    text = text.replace(money[0], ' ');
+  }
+  // How often, before the date clause is cut out ("renews the 3rd $15.49 monthly").
+  const original = text;
+  const when = dateAfter(text, /\b(?:ends?|ending|renews?|renewal|renewing|charges?|charged|bills?|billed|due|expires?|until)\b(?:\s+(?:on|by))?/i, today, 'future');
+  if (when) text = text.slice(0, when.span[0]) + ' ' + text.slice(when.span[1]);
+  const trial = /\btrial\b/i.test(original);
+  // "Disney+ free trial, 7 days": a length instead of a date.
+  let length: ISODate | null = null;
+  if (!when) {
+    const m = /\b(\d{1,3})[- ]?(day|week|month)s?\b/i.exec(text);
+    if (m) {
+      const n = Number(m[1]);
+      length = m[2].toLowerCase() === 'month' ? addMonths(today, n) : addDays(today, m[2].toLowerCase() === 'week' ? n * 7 : n);
+      text = text.replace(m[0], ' ');
+    }
+  }
+  const repeat: Repeat = /\b(monthly|a month|per month|every month|\/\s?mo)\b/i.test(original)
+    ? 'monthly'
+    : /\b(yearly|annual(?:ly)?|a year|per year|every year|\/\s?yr)\b/i.test(original) || (/\bmembership\b/i.test(original) && !trial)
+      ? 'yearly'
+      : 'none';
+  const name = text
+    .replace(/\b(monthly|a month|per month|every month|yearly|annual(?:ly)?|a year|per year|every year)\b/gi, ' ')
+    .replace(/\b(got|bought|ordered|picked up|purchased|signed up for|started)\b/gi, ' ')
+    .replace(/\b(my|the|a|an|for|of|is|it|will|on|at|and|then|me|remind|before|i'?m|charged?|charges|bills?|billed|renews?|due|ends?|days?)\b/gi, ' ')
+    .replace(/\b\d+\b/g, ' ')
+    .replace(/\b\d{1,2}(?:st|nd|rd|th)\b/gi, ' ')
+    .replace(/[,.;:!/]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const service = name.replace(/\b(free|trial|subscription|membership|auto[- ]?renews?|renews?|renewal)\b/gi, ' ').replace(/\s+/g, ' ').trim();
+  return {
+    kind: 'renewal',
+    title: cap(name).slice(0, 60),
+    store: service ? service.replace(/\b([a-z])/g, (c) => c.toUpperCase()).slice(0, 40) : '',
+    date: today,
+    total,
+    category: 'other',
+    online: false,
+    deliveryDate: null,
+    returnBy: null,
+    warrantyUntil: null,
+    expires: when?.date ?? length,
+    giftFor: '',
+    repeat,
+  };
 }
 
 /**
@@ -49,6 +160,8 @@ function dateAfter(text: string, words: RegExp, today: ISODate, direction: 'futu
  *   "Ordered boots on Amazon for $89, arrives Friday"
  */
 export function parseQuickAdd(input: string, today: ISODate): QuickAdd {
+  // Trials and subscriptions read differently ("ends", "renews", how often it charges).
+  if (isRenewalSentence(input)) return parseRenewal(input, today);
   let text = ` ${input.trim().replace(/\s+/g, ' ')} `;
   const cut = (re: RegExp) => {
     text = text.replace(re, ' ');
@@ -80,7 +193,7 @@ export function parseQuickAdd(input: string, today: ISODate): QuickAdd {
   }
   if (/lifetime warranty/i.test(text)) cut(/lifetime warranty/i);
 
-  const expiry = dateAfter(text, /\b(expires?|expiring|exp|valid (?:until|through|thru)|good (?:until|through|thru)|use (?:it )?by|until)\b/i, today, 'future');
+  const expiry = dateAfter(text, /\b(expires?|expiring|exp|valid (?:until|through|thru)|good (?:until|through|thru)|use (?:it )?by|until)\b/i, today, 'future', 'end');
   if (expiry) text = text.slice(0, expiry.span[0]) + ' ' + text.slice(expiry.span[1]);
 
   const online = /\b(ordered|online|shipped|delivered|arrives?|arriving|delivery)\b/i.test(text) || false;
@@ -163,5 +276,6 @@ export function parseQuickAdd(input: string, today: ISODate): QuickAdd {
     warrantyUntil,
     expires: expiry?.date ?? null,
     giftFor,
+    repeat: 'none',
   };
 }

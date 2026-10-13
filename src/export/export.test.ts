@@ -18,7 +18,7 @@ describe('ics', () => {
   });
 
   it('writes all-day events with alarms', () => {
-    const list = deadlines([card({ store: 'Target', title: 'Boots', total: 12000, returnBy: '2026-10-20' })], today);
+    const list = deadlines([card({ store: 'Target', title: 'Boots', total: 12000, returnBy: '2026-10-20' })], today).filter((d) => d.kind === 'return');
     const ics = buildICS(list, today, new Date('2026-10-11T12:00:00Z'));
     expect(ics).toContain('BEGIN:VCALENDAR\r\n');
     expect(ics).toContain('DTSTART;VALUE=DATE:20261020');

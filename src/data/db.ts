@@ -1,6 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie';
 import { APP } from '../config/app';
-import type { Card, CardDraft, CardImage, Saving } from './types';
+import { normalizeCard, type Card, type CardDraft, type CardImage, type Saving } from './types';
 
 class KeptDB extends Dexie {
   cards!: EntityTable<Card, 'id'>;
@@ -48,9 +48,31 @@ export async function deleteCard(id: string) {
   notify();
 }
 
-export const getCard = (id: string) => db().cards.get(id);
+export const getCard = async (id: string) => {
+  const c = await db().cards.get(id);
+  return c ? normalizeCard(c) : undefined;
+};
 export const getImage = (id: string) => db().images.get(id);
-export const listCards = () => db().cards.toArray();
+export const listCards = async () => (await db().cards.toArray()).map(normalizeCard);
+
+/** Saves (or replaces) the return label / QR picture for a card. */
+export async function setLabelImage(id: string, label: Blob | null, labelOnly = false) {
+  await db().transaction('rw', db().images, async () => {
+    const existing = await db().images.get(id);
+    // No receipt photo: the row holds only the label, so removing it removes the row.
+    if (existing && !label && labelOnly) await db().images.delete(id);
+    else if (existing) {
+      const next = { ...existing };
+      if (label) next.label = label;
+      else delete next.label;
+      await db().images.put(next);
+    } else if (label) {
+      // No receipt photo: keep the label on its own.
+      await db().images.put({ id, image: label, thumb: label, label });
+    }
+  });
+  notify();
+}
 export const listSavings = () => db().savings.orderBy('date').reverse().toArray();
 
 export async function addSaving(s: Omit<Saving, 'id'>) {

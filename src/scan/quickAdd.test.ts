@@ -65,3 +65,95 @@ describe('parseQuickAdd', () => {
     expect(q.returnBy).toBe('2026-10-23');
   });
 });
+
+describe('trials and subscriptions', () => {
+  it('reads a trial that ends on a weekday', () => {
+    const q = parseQuickAdd('Netflix trial ends Friday $15.49', today);
+    expect(q.kind).toBe('renewal');
+    expect(q.store).toBe('Netflix');
+    expect(q.title).toBe('Netflix trial');
+    expect(q.expires).toBe('2026-10-16');
+    expect(q.total).toBe(1549);
+    expect(q.repeat).toBe('none');
+  });
+
+  it('reads a membership that renews in a month', () => {
+    const q = parseQuickAdd('Costco membership renews in March, $65', today);
+    expect(q.kind).toBe('renewal');
+    expect(q.store).toBe('Costco');
+    expect(q.expires).toBe('2027-03-01');
+    expect(q.total).toBe(6500);
+    expect(q.repeat).toBe('yearly');
+  });
+
+  it('reads a monthly subscription with a date', () => {
+    const q = parseQuickAdd('Spotify $11.99 monthly renews Nov 3', today);
+    expect(q.kind).toBe('renewal');
+    expect(q.store).toBe('Spotify');
+    expect(q.expires).toBe('2026-11-03');
+    expect(q.repeat).toBe('monthly');
+  });
+
+  it('reads "ends in N days"', () => {
+    const q = parseQuickAdd('Hulu trial ends in 5 days $9.99', today);
+    expect(q.expires).toBe('2026-10-16');
+    expect(q.total).toBe(999);
+    expect(q.store).toBe('Hulu');
+  });
+
+  it('still reads store credit and returns as before', () => {
+    expect(parseQuickAdd('$25 store credit at Target, expires Dec 31', today).kind).toBe('credit');
+    expect(parseQuickAdd('Got a vacuum at Target, 90-day return', today).kind).toBe('purchase');
+  });
+});
+
+describe('trial detection (review regressions)', () => {
+  it('keeps ordinary purchases as purchases', () => {
+    expect(parseQuickAdd('Got AirPods at Best Buy with my membership $199', today).kind).toBe('purchase');
+    expect(parseQuickAdd('Bought trial size shampoo at CVS $5', today).kind).toBe('purchase');
+    expect(parseQuickAdd('Bought renewing serum at Sephora $45', today).kind).toBe('purchase');
+    expect(parseQuickAdd('Picked up a membership card holder at Target $12', today).kind).toBe('purchase');
+  });
+
+  it('reads "renews in <this month>" as now, and "the 3rd" as the next 3rd', () => {
+    expect(parseQuickAdd('Amazon Prime membership renews in October $139', today).expires).toBe(today);
+    const q = parseQuickAdd('Spotify subscription $11.99 monthly, renews the 3rd', today);
+    expect(q.kind).toBe('renewal');
+    expect(q.expires).toBe('2026-11-03');
+    expect(q.store).toBe('Spotify');
+  });
+
+  it('looks past a trigger word without a date', () => {
+    expect(parseQuickAdd('Spotify subscription charges me monthly, renews Nov 3', today).expires).toBe('2026-11-03');
+  });
+});
+
+describe('trial detection (second check)', () => {
+  const t = '2026-10-12';
+  it('reads trials people actually type', () => {
+    for (const [s, date] of [
+      ['Got a Netflix free trial, ends Friday', '2026-10-16'],
+      ['Bought a Costco membership, renews in March, $65', '2027-03-01'],
+      ['Peacock trial until Friday', '2026-10-16'],
+      ['Peacock free trial expires Friday', '2026-10-16'],
+      ['Hulu trial until Nov 5', '2026-11-05'],
+      ['Disney+ free trial, 7 days', '2026-10-19'],
+      ['Amazon Prime renewing Nov 3 $139', '2026-11-03'],
+    ] as const) {
+      const q = parseQuickAdd(s, t);
+      expect([s, q.kind, q.expires]).toEqual([s, 'renewal', date]);
+    }
+  });
+
+  it('keeps "monthly" after the date and the 31st on the 31st', () => {
+    const q = parseQuickAdd('Netflix renews the 3rd $15.49 monthly', t);
+    expect([q.expires, q.repeat]).toEqual(['2026-11-03', 'monthly']);
+    expect(parseQuickAdd('Planet Fitness membership due on the 17th $10 monthly', t).repeat).toBe('monthly');
+    expect(parseQuickAdd('Gym membership $40 monthly, bills on the 31st', '2026-11-10').expires).toBe('2026-12-31');
+  });
+
+  it('lets "expires in October" last the whole month for coupons', () => {
+    expect(parseQuickAdd('$20 coupon at Target, expires in October', t).expires).toBe('2026-10-31');
+    expect(parseQuickAdd('$50 gift card at Macys, good through March', t).expires).toBe('2027-03-31');
+  });
+});

@@ -21,7 +21,8 @@ export default function EditScreen({ id }: { id: string }) {
       {card && (
         <CardForm
           initial={card}
-          fixed={['returnBy', 'warrantyUntil']}
+          // Saved dates stay as they are when editing; the user changes them by hand.
+          fixed={['returnBy', 'warrantyUntil', 'extendedWarrantyUntil']}
           imageUrl={imageUrl}
           saveLabel="Save changes"
           onCancel={() => back({ name: 'card', id })}

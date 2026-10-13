@@ -20,9 +20,14 @@ Architecture and how the concept maps to a web app are in [PLAN.md](PLAN.md). Th
 - **Online orders:** the return clock starts at delivery, and the app asks for the delivery date.
 - **Coming Up (home):** every deadline sorted by urgency: This week (red), This month, Later, and Just missed.
 - **Reminders:** “3 days left to return the boots ($120)”, “Your laptop warranty ends in 30 days. Anything acting up?”, “Your $10 coupon at Kohl’s expires Friday”. See [Reminders](#reminders).
-- **Wallet:** coupons, gift cards and store credit grouped by store with balances; “Spent some”, “Used it all”, “I used it”.
+- **Wallet:** coupons, gift cards and store credit grouped by store with balances; “Spent some”, “Used it all”, “I used it”. Tap a store for its **store page**: everything you have there, with coupon codes and photos shown big for the cashier.
+- **Trials & subscriptions:** “Netflix trial ends Friday $15.49” or “Costco membership renews in March” and Kept reminds you 3 days and 1 day before it charges. “I cancelled it” counts toward Savings.
+- **Finish the return:** “Return it” → in store, or by mail with the return label/QR saved and shown full screen at drop-off → “Dropped it off” → a check 10 days later that the refund arrived.
+- **Price-drop money back:** for bigger buys at stores that usually refund a lower price (Target 14 days, Costco 30, Best Buy during the return window, Home Depot, Lowe’s, Kohl’s, Gap…), a reminder to check, a link to the store’s search, and “Got money back” for Savings.
+- **Memberships & cards:** Target Circle Card, My Best Buy Plus/Total and REI Co-op lengthen return windows; a credit card that extends warranties fills in the longer date.
+- **Sunday check-in and fewer reminders:** one 9 am note on Sundays with what to decide; everything due at once is bundled into one notification; no reminders for groceries (grocery-store receipts included) or buys under a cut-off.
 - **Receipts:** a searchable archive (“TV”, “Best Buy”, part of a serial number, anything on the receipt) with filters.
-- **Savings:** a running total of money kept through returns, warranty claims and coupons used.
+- **Savings:** a running total of money kept through returns, price drops, warranty claims, coupons and cancelled trials.
 - **Instant proof:** export any receipt as a PDF (details + photo) for a warranty claim or expense report; export an “everything I own” list as PDF or CSV for insurance.
 - **Backups:** save and restore a backup file (iCloud Drive, Files, Google Drive…), since data lives only on the device.
 - **PWA:** offline after the first load (scanning included), installable (Android prompt, iPhone how‑to), safe‑area aware, Reduce Motion and screen‑reader friendly.

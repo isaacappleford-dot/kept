@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getCard, getImage, listCards, listSavings, onDataChange } from './db';
-import type { Card, Saving } from './types';
+import type { Card, CardImage, Saving } from './types';
 
 /** Re-runs `load` whenever the data changes. undefined while loading. */
 function useLive<T>(load: () => Promise<T>, deps: unknown[]): T | undefined {
@@ -46,3 +46,6 @@ export function useImageUrl(id: string | null, which: 'thumb' | 'image' = 'thumb
   }, [id, which]);
   return url;
 }
+
+/** A card's stored pictures (receipt, and the return label if any). */
+export const useCardImages = (id: string) => useLive<CardImage | null>(async () => (await getImage(id)) ?? null, [id]);
