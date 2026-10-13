@@ -139,3 +139,26 @@ describe('review regressions', () => {
     expect(dueReminders([d], new Set([due[0].key]), today)).toHaveLength(0);
   });
 });
+
+describe('renewals (second check)', () => {
+  it('says "renews", not "trial ends", once a trial has rolled into a paid plan', () => {
+    const t = card({ kind: 'renewal', store: 'Netflix', title: 'Netflix free trial', total: 1549, expires: '2026-09-16', repeat: 'monthly' });
+    const [d] = deadlines([t], today);
+    expect(d.date).toBe('2026-10-16');
+    expect(reminderText(d, today).title).toBe('Your Netflix free trial renews Friday ($15.49)');
+  });
+
+  it('keeps product names as typed', async () => {
+    const { renewalName } = await import('../data/types');
+    expect(renewalName({ store: 'Apple', title: 'TV+' })).toBe('Apple TV+');
+    expect(renewalName({ store: 'Netflix', title: 'Free trial' })).toBe('Netflix free trial');
+  });
+
+  it('sends the server the following charge too', async () => {
+    const { scheduleReminders, localTime } = await import('./schedule');
+    const s = card({ kind: 'renewal', store: 'Spotify', title: 'Premium', total: 1199, expires: '2026-10-14', repeat: 'monthly' });
+    const keys = scheduleReminders(deadlines([s], today), today, localTime(today, 12), { currency: 'USD', cardUrl: (id) => id }).map((r) => r.key);
+    expect(keys).toContain(`${s.id}:charge:2026-10-14:1`);
+    expect(keys).toContain(`${s.id}:charge:2026-11-14:3`);
+  });
+});

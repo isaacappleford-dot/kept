@@ -127,3 +127,33 @@ describe('trial detection (review regressions)', () => {
     expect(parseQuickAdd('Spotify subscription charges me monthly, renews Nov 3', today).expires).toBe('2026-11-03');
   });
 });
+
+describe('trial detection (second check)', () => {
+  const t = '2026-10-12';
+  it('reads trials people actually type', () => {
+    for (const [s, date] of [
+      ['Got a Netflix free trial, ends Friday', '2026-10-16'],
+      ['Bought a Costco membership, renews in March, $65', '2027-03-01'],
+      ['Peacock trial until Friday', '2026-10-16'],
+      ['Peacock free trial expires Friday', '2026-10-16'],
+      ['Hulu trial until Nov 5', '2026-11-05'],
+      ['Disney+ free trial, 7 days', '2026-10-19'],
+      ['Amazon Prime renewing Nov 3 $139', '2026-11-03'],
+    ] as const) {
+      const q = parseQuickAdd(s, t);
+      expect([s, q.kind, q.expires]).toEqual([s, 'renewal', date]);
+    }
+  });
+
+  it('keeps "monthly" after the date and the 31st on the 31st', () => {
+    const q = parseQuickAdd('Netflix renews the 3rd $15.49 monthly', t);
+    expect([q.expires, q.repeat]).toEqual(['2026-11-03', 'monthly']);
+    expect(parseQuickAdd('Planet Fitness membership due on the 17th $10 monthly', t).repeat).toBe('monthly');
+    expect(parseQuickAdd('Gym membership $40 monthly, bills on the 31st', '2026-11-10').expires).toBe('2026-12-31');
+  });
+
+  it('lets "expires in October" last the whole month for coupons', () => {
+    expect(parseQuickAdd('$20 coupon at Target, expires in October', t).expires).toBe('2026-10-31');
+    expect(parseQuickAdd('$50 gift card at Macys, good through March', t).expires).toBe('2027-03-31');
+  });
+});

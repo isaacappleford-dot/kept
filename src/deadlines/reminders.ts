@@ -1,5 +1,5 @@
 import { REMINDER_LEADS } from '../config/policies';
-import { KIND_LABEL } from '../data/types';
+import { isTrial, KIND_LABEL } from '../data/types';
 import { relativeDay, type ISODate } from '../lib/dates';
 import { formatMoney } from '../lib/money';
 import type { Deadline } from './deadlines';
@@ -70,7 +70,7 @@ export function reminderText(d: Deadline, today: ISODate, currency = 'USD'): { t
         body: 'Check your card or account, then tap to mark it.',
       };
     case 'charge': {
-      const trial = /\btrial\b/i.test(d.card.title);
+      const trial = isTrial(d.card, d.date);
       const name = d.name || 'subscription';
       return {
         title: `Your ${name} ${trial ? 'ends' : 'renews'} ${relativeDay(d.date, today)}${money ? ` (${money})` : ''}`,

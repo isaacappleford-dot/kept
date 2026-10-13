@@ -5,7 +5,7 @@ import { Thumb } from '../components/Rows';
 import { Button, EmptyState, Header, Spinner } from '../components/ui';
 import { addSaving, updateCard } from '../data/db';
 import { useCards, useSavings } from '../data/hooks';
-import { cardName, KIND_LABEL, type Card } from '../data/types';
+import { cardName, isTrial, KIND_LABEL, type Card } from '../data/types';
 import type { Deadline } from '../deadlines/deadlines';
 import { checkinItems } from '../deadlines/digest';
 import { checkReminders } from '../deadlines/notify';
@@ -163,7 +163,7 @@ export default function CheckinScreen() {
                           ? `Check for a lower price at ${d.store || 'the store'} (until ${formatShort(d.date, today)})`
                           : d.kind === 'refund'
                             ? 'Did the refund arrive?'
-                            : `${/\btrial\b/i.test(d.card.title) ? 'Ends' : 'Renews'} ${relativeDay(d.date, today)}${d.amount ? ` · ${money(d.amount)}` : ''}`}
+                            : `${isTrial(d.card, d.date) ? 'Ends' : 'Renews'} ${relativeDay(d.date, today)}${d.amount ? ` · ${money(d.amount)}` : ''}`}
                       </span>
                     </span>
                     <Icon name="arrow" size={18} className="text-white/40" />

@@ -1,6 +1,6 @@
 import { REMINDER_LEADS } from '../config/policies';
-import type { Card } from '../data/types';
-import { addDays, parts, type ISODate } from '../lib/dates';
+import { nextCharge, type Card } from '../data/types';
+import { addDays, daysBetween, parts, type ISODate } from '../lib/dates';
 import type { ScheduledReminder } from '../../server/src/protocol';
 import { clip, DIGEST_PREFIX, MAX_BODY, MAX_REMINDERS, MAX_TITLE } from '../../server/src/protocol';
 import type { Deadline } from './deadlines';
@@ -38,9 +38,8 @@ export interface ScheduleOptions {
 export function scheduleReminders(list: Deadline[], today: ISODate, now: number, opts: ScheduleOptions): ScheduledReminder[] {
   const out: ScheduledReminder[] = [];
   const minAmount = opts.minAmount ?? 0;
-  for (const d of list) {
-    if ((d.daysLeft < 0 && d.kind !== 'refund') || !remindable(d, minAmount)) continue;
-    const current = stageFor(d);
+  const add = (d: Deadline, withCurrent: boolean) => {
+    const current = withCurrent ? stageFor(d) : null;
     for (const lead of REMINDER_LEADS[d.kind]) {
       if (lead > d.daysLeft && lead !== current) continue;
       const isCurrent = lead === current;
@@ -54,6 +53,15 @@ export function scheduleReminders(list: Deadline[], today: ISODate, now: number,
         body,
         url: opts.cardUrl(d.cardId),
       });
+    }
+  };
+  for (const d of list) {
+    if ((d.daysLeft < 0 && d.kind !== 'refund') || !remindable(d, minAmount)) continue;
+    add(d, true);
+    // Repeating subscriptions: also the following charge, so it's reminded even if the app isn't opened in between.
+    if (d.kind === 'charge' && d.card.repeat !== 'none' && !d.card.used) {
+      const following = nextCharge({ ...d.card, expires: d.date }, addDays(d.date, 1));
+      if (following && following !== d.date) add({ ...d, date: following, daysLeft: daysBetween(today, following) }, false);
     }
   }
   if (opts.checkin) {

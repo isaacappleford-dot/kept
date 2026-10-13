@@ -1,5 +1,6 @@
 import type { Card } from '../data/types';
-import { cardName, KIND_LABEL } from '../data/types';
+import { cardName, KIND_LABEL, nextCharge } from '../data/types';
+import { todayISO } from '../lib/dates';
 import { categoryById } from '../config/policies';
 
 export function csvCell(v: unknown): string {
@@ -38,7 +39,8 @@ export function inventoryCSV(cards: Card[]): string {
 export function walletCSV(cards: Card[]): string {
   const rows: unknown[][] = [['Type', 'Store', 'Name', 'Balance', 'Code', 'Expires', 'Used']];
   for (const c of cards.filter((c) => c.kind !== 'purchase')) {
-    rows.push([KIND_LABEL[c.kind], c.store, cardName(c), amount(c.balance), c.code, c.expires ?? '', c.used ? 'Yes' : 'No']);
+    const date = c.kind === 'renewal' ? nextCharge(c, todayISO()) : c.expires;
+    rows.push([KIND_LABEL[c.kind], c.store, cardName(c), amount(c.kind === 'renewal' ? c.total : c.balance), c.code, date ?? '', c.used ? 'Yes' : 'No']);
   }
   return toCSV(rows);
 }

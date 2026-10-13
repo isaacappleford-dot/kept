@@ -1,6 +1,7 @@
 import { APP } from '../config/app';
 import type { Deadline } from '../deadlines/deadlines';
 import { reminderText } from '../deadlines/reminders';
+import { isTrial } from '../data/types';
 import { addDays, type ISODate } from '../lib/dates';
 
 /**
@@ -59,7 +60,7 @@ export function buildICS(list: Deadline[], today: ISODate, now = new Date(), cur
       expires: `Expires: ${title.replace(/^Your /, '').replace(/ expires .*$/, '')}`,
       price: `Price-drop refund ends: ${d.name}`,
       refund: `Check refund: ${d.name}`,
-      charge: `${d.name || 'Subscription'} ${/\btrial\b/i.test(d.card.title) ? 'ends' : 'renews'}`,
+      charge: `${d.name || 'Subscription'} ${isTrial(d.card, d.date) ? 'ends' : 'renews'}`,
     }[d.kind];
     lines.push(
       'BEGIN:VEVENT',

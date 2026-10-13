@@ -97,7 +97,8 @@ export function CardForm({ initial, unsure = [], fixed: initialFixed = [], image
     setD((prev) => ({ ...prev, [field]: v }));
   };
   const unfix = (field: FixedField) => {
-    const next = fixed.filter((f) => f !== field);
+    // Taking the warranty suggestion also re-suggests an empty extended warranty (credit-card perk).
+    const next = fixed.filter((f) => f !== field && !(field === 'warrantyUntil' && f === 'extendedWarrantyUntil' && !d.extendedWarrantyUntil));
     setFixed(next);
     if (field === 'returnBy') setEditedReturn(false);
     setD((prev) => withSuggestions(prev, next, prefs));

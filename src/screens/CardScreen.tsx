@@ -8,7 +8,7 @@ import { Button, Header, IconButton, Sheet, SheetItem, Spinner } from '../compon
 import { categoryById, PRICE_CHECK_MIN } from '../config/policies';
 import { addSaving, deleteCard, deleteSavingsFor, setLabelImage, updateCard } from '../data/db';
 import { useCard, useCardImages, useImageUrl, useSavings } from '../data/hooks';
-import { cardName, isWallet, KIND_LABEL, nextCharge, type Card } from '../data/types';
+import { cardName, isTrial, isWallet, KIND_LABEL, nextCharge, type Card } from '../data/types';
 import { deadlines } from '../deadlines/deadlines';
 import { findStore, storeSearchUrl } from '../deadlines/policy';
 import { remindable } from '../deadlines/filters';
@@ -58,8 +58,8 @@ function CardView({ card }: { card: Card }) {
   const isPurchase = card.kind === 'purchase';
   const isRenewal = card.kind === 'renewal';
   const isWalletKind = isWallet(card.kind);
-  const trial = /\btrial\b/i.test(card.title);
   const chargeOn = nextCharge(card, today);
+  const trial = isTrial(card, chargeOn);
   const cancelled = claimed.some((s) => s.kind === 'cancel');
   // Big buys at stores that don't adjust prices: suggest return-and-rebuy while the window is open.
   const policy = findStore(card.store);
@@ -122,7 +122,7 @@ function CardView({ card }: { card: Card }) {
                 await set({ returnStatus: 'open', returnMethod: null, droppedOffOn: null, refundCheckOn: null }, 'Marked as not returned');
               }}
               onCancelReturn={async () => {
-                if (images?.label) await setLabelImage(card.id, null);
+                if (images?.label) await setLabelImage(card.id, null, !card.hasImage);
                 await set({ returnStatus: 'open', returnMethod: null, droppedOffOn: null, refundCheckOn: null, returnCode: '' }, 'Return cancelled');
               }}
               hasLabel={!!images?.label || !!card.returnCode}
@@ -212,7 +212,8 @@ function CardView({ card }: { card: Card }) {
                   className="min-h-[36px] px-4 text-[14px]"
                   onClick={() =>
                     card.repeat === 'yearly' && chargeOn
-                      ? void set({ expires: addMonths(chargeOn, 12) }, 'Keeping it. We’ll remind you before next year’s renewal.')
+                      ? // Before the charge: skip to next year's. After it (date already rolled): that one is next.
+                        void set({ expires: chargeOn === card.expires ? addMonths(chargeOn, 12) : chargeOn }, 'Keeping it. We’ll remind you before next year’s renewal.')
                       : void set({ used: true, renewalOutcome: 'kept' }, 'Keeping it. No more reminders.')
                   }
                 >

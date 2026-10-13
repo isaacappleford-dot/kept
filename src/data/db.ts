@@ -56,10 +56,12 @@ export const getImage = (id: string) => db().images.get(id);
 export const listCards = async () => (await db().cards.toArray()).map(normalizeCard);
 
 /** Saves (or replaces) the return label / QR picture for a card. */
-export async function setLabelImage(id: string, label: Blob | null) {
+export async function setLabelImage(id: string, label: Blob | null, labelOnly = false) {
   await db().transaction('rw', db().images, async () => {
     const existing = await db().images.get(id);
-    if (existing) {
+    // No receipt photo: the row holds only the label, so removing it removes the row.
+    if (existing && !label && labelOnly) await db().images.delete(id);
+    else if (existing) {
       const next = { ...existing };
       if (label) next.label = label;
       else delete next.label;

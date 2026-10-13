@@ -157,7 +157,14 @@ export function renewalName(c: Pick<Card, 'title' | 'store'>): string {
   const store = c.store.trim();
   if (!store) return title || KIND_LABEL.renewal;
   if (!title || title.toLowerCase().includes(store.toLowerCase())) return title || store;
-  return `${store} ${title.charAt(0).toLowerCase()}${title.slice(1)}`;
+  // "Netflix free trial", but "Apple TV+" stays as typed.
+  const generic = /^(free|trial|membership|subscription|plan|premium|monthly|annual|yearly|basic|standard)\b/i.test(title);
+  return `${store} ${generic ? title.charAt(0).toLowerCase() + title.slice(1) : title}`;
+}
+
+/** Still in the free trial: "trial" in the name and the first charge hasn't come round yet (a rolled renewal is a subscription now). */
+export function isTrial(c: Pick<Card, 'title' | 'expires'>, chargeDate: string | null): boolean {
+  return /\btrial\b/i.test(c.title) && (!chargeDate || !c.expires || chargeDate === c.expires);
 }
 
 /**
